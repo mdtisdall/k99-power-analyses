@@ -191,7 +191,10 @@ difference** (as Cohen's d and in outcome units). It saves the table to
   marked;
 - right: smallest detectable d at the target power against subjects per site.
 
-With the defaults (20 sites, 2 groups, 10 regions, so each test is at α = 0.005):
+With the defaults (20 sites, 2 groups, 10 regions, so each test is at α = 0.005;
+the noise and effect parameters are placeholders):
+
+![Power to detect d = 0.5 and smallest detectable d at 80% power, against subjects per site, for 20 sites, 2 groups, and 10 regions](docs/group_effect_curve.png)
 
 | Subjects per site | N | Power at d = 0.5 | Smallest detectable d |
 |---|---|---|---|
