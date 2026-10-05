@@ -92,7 +92,7 @@ $S_{xx} = \sum_i x_i^2$.
 The outcome for subject $i$, region $r$, site $s$ is
 
 $$
-y_{irs} = \mu_{rs} + \beta_{rs}\, x_i + u_i + v_{ir} + w_{is} + \varepsilon_{irs},
+y_{irs} = \mu_{rs} + \beta_{rs}\thinspace x_i + u_i + v_{ir} + w_{is} + \varepsilon_{irs},
 $$
 
 where all random terms are independent with mean 0:
@@ -140,7 +140,7 @@ $$
 = (I_5 \otimes M^{-1}) \sum_i \mathbf y_i \otimes \mathbf z_i .
 $$
 
-$V$ cancels. The block for region $r$ is $M^{-1} \sum_i \mathbf z_i\, y_{ir}$, which
+$V$ cancels. The block for region $r$ is $M^{-1} \sum_i \mathbf z_i\thinspace y_{ir}$, which
 is the OLS fit of that region alone on age. This is the classical result that GLS
 equals OLS when every equation has the same regressors (Zellner, 1962;
 Kruskal, 1968). It holds for **any** $V$, so it does not matter how well the
@@ -148,7 +148,7 @@ Kruskal, 1968). It holds for **any** $V$, so it does not matter how well the
 REML estimates. Because $x$ is centered, $M = \mathrm{diag}(N, S_{xx})$ and
 
 $$
-\hat\beta_{rs} = \frac{1}{S_{xx}} \sum_i x_i\, y_{irs}.
+\hat\beta_{rs} = \frac{1}{S_{xx}} \sum_i x_i\thinspace y_{irs}.
 $$
 
 This step needs complete data: every subject must have all 5 regions, so that every
@@ -162,7 +162,7 @@ appear at both sites,
 
 $$
 \hat\gamma_r^{jk} \equiv \hat\beta_{rj} - \hat\beta_{rk}
-= \frac{1}{S_{xx}} \sum_i x_i\, D_{ir}^{jk},
+= \frac{1}{S_{xx}} \sum_i x_i\thinspace D_{ir}^{jk},
 $$
 
 which is exactly the OLS slope from regressing $D_{ir}^{jk}$ on $x_i$, with an
@@ -176,7 +176,7 @@ fits would ignore that pairing.
 Substituting the model into $D_{ir}^{jk}$:
 
 $$
-D_{ir}^{jk} = (\mu_{rj} - \mu_{rk}) + \gamma_r^{jk}\, x_i +
+D_{ir}^{jk} = (\mu_{rj} - \mu_{rk}) + \gamma_r^{jk}\thinspace x_i +
 (w_{ij} - w_{ik}) + (\varepsilon_{irj} - \varepsilon_{irk}),
 \qquad \gamma_r^{jk} = \delta_{rj} - \delta_{rk}.
 $$
@@ -189,7 +189,7 @@ the ages, this is a classical normal simple linear regression:
 $$
 \hat\gamma_r^{jk} \sim N\Big(\gamma_r^{jk},\ \frac{2\lambda^2}{S_{xx}}\Big),
 \qquad
-\widehat{\mathrm{SE}}^2 = \frac{\mathrm{RSS}}{(N-2)\, S_{xx}},
+\widehat{\mathrm{SE}}^2 = \frac{\mathrm{RSS}}{(N-2)\thinspace S_{xx}},
 \qquad
 T = \frac{\hat\gamma_r^{jk} - \gamma_r^{jk}}{\widehat{\mathrm{SE}}} \sim t_{N-2}.
 $$
@@ -204,17 +204,17 @@ appear.
 For a margin $\Delta > 0$, test
 $H_0: \lvert\gamma\rvert \ge \Delta$ against $H_1: \lvert\gamma\rvert < \Delta$
 with two one-sided tests (TOST; Schuirmann, 1987), each at level $\alpha$. With
-$t^\ast = t_{1-\alpha,\,N-2}$, both reject when
+$t^\ast = t_{1-\alpha,\thinspace N-2}$, both reject when
 
 $$
-\hat\gamma - t^\ast\, \widehat{\mathrm{SE}} > -\Delta
+\hat\gamma - t^\ast\thinspace \widehat{\mathrm{SE}} > -\Delta
 \quad\text{and}\quad
-\hat\gamma + t^\ast\, \widehat{\mathrm{SE}} < \Delta
+\hat\gamma + t^\ast\thinspace \widehat{\mathrm{SE}} < \Delta
 \quad\Longleftrightarrow\quad
-\lvert\hat\gamma\rvert + t^\ast\, \widehat{\mathrm{SE}} < \Delta .
+\lvert\hat\gamma\rvert + t^\ast\thinspace \widehat{\mathrm{SE}} < \Delta .
 $$
 
-Equivalently, the $100(1-2\alpha)\%$ CI (90% for $\alpha = 0.05$) lies inside
+Equivalently, the $100(1-2\alpha)$% CI (90% for $\alpha = 0.05$) lies inside
 $(-\Delta, \Delta)$. The test has size $\alpha$.
 
 ### Step 5: Combining the 15 comparisons
@@ -227,7 +227,7 @@ $\alpha$ with **no multiplicity adjustment** (Berger, 1982). The cost is in powe
 which is the probability that all 15 pass:
 
 $$
-\text{power}(\Delta) = P\Big(\max_{r,\,(j,k)} \big[\lvert\hat\gamma_r^{jk}\rvert + t^\ast\, \widehat{\mathrm{SE}}_r^{jk}\big] < \Delta\Big).
+\text{power}(\Delta) = P\Big(\max_{r,\thinspace (j,k)} \big[\lvert\hat\gamma_r^{jk}\rvert + t^\ast\thinspace \widehat{\mathrm{SE}}_r^{jk}\big] < \Delta\Big).
 $$
 
 ### Step 6: Why simulation is needed
@@ -236,7 +236,7 @@ The 15 comparisons are not independent. Conditional on the ages, the 15
 estimates $\hat\gamma_r^{jk}$ are jointly normal, with these covariances (each
 multiplied by $S_{xx}$):
 
-| Pair of comparisons | $S_{xx}\,\mathrm{Cov}$ |
+| Pair of comparisons | $S_{xx}\thinspace \mathrm{Cov}$ |
 |---|---|
 | same region, same site pair (variance) | $2\lambda^2$ |
 | different regions, same site pair | $2\sigma_w^2$ |
@@ -251,7 +251,7 @@ therefore has no convenient closed form, so `power.py` estimates it by Monte Car
 In each simulated study it:
 
 1. draws $N$ ages uniformly on `[age_min, age_max]` and centers them;
-2. draws $w_{is}$ and $\varepsilon_{irs}$, and adds $\delta_{rs}\, x_i$;
+2. draws $w_{is}$ and $\varepsilon_{irs}$, and adds $\delta_{rs}\thinspace x_i$;
 3. forms the 15 difference scores and computes each $\hat\gamma$ and
    $\widehat{\mathrm{SE}}$ in closed form (Step 3).
 
@@ -264,7 +264,7 @@ simulated study, so the result averages over possible samples of ages.
 Define, for each simulated study, the smallest margin it would pass:
 
 $$
-\Delta_{\min} = \max_{r,\,(j,k)} \big[\lvert\hat\gamma_r^{jk}\rvert + t^\ast\, \widehat{\mathrm{SE}}_r^{jk}\big].
+\Delta_{\min} = \max_{r,\thinspace (j,k)} \big[\lvert\hat\gamma_r^{jk}\rvert + t^\ast\thinspace \widehat{\mathrm{SE}}_r^{jk}\big].
 $$
 
 The study shows equivalence at margin $\Delta$ exactly when $\Delta_{\min} < \Delta$,
@@ -286,7 +286,7 @@ width $R$ = `age_max − age_min`, every $\hat\gamma$ and $\widehat{\mathrm{SE}}
 proportional to $\lambda / R$. Hence
 
 $$
-\Delta^\ast_p = \frac{\sqrt{\sigma_w^2 + \sigma^2}}{R}\; g_p(N, \rho),
+\Delta^\ast_p = \frac{\sqrt{\sigma_w^2 + \sigma^2}}{R}\thinspace g_p(N, \rho),
 \qquad \rho = \frac{\sigma_w^2}{\sigma_w^2 + \sigma^2},
 $$
 
@@ -299,9 +299,9 @@ values ($\lambda = 0.112$, $R = 40$, ages 25–65, $\rho = 0.2$), this gives
 $\Delta^\ast_{0.8} \approx 0.112 / 40 \times 17.0 \approx 0.048$.
 
 Why $g$ is so large at $N = 5$: for a single comparison, $S_{xx}$ is about
-$(N-1)R^2/12$, so $\mathrm{SE} \approx \sqrt{24/(N-1)}\, \lambda/R \approx 2.4\,\lambda/R$.
+$(N-1)R^2/12$, so $\mathrm{SE} \approx \sqrt{24/(N-1)}\thinspace \lambda/R \approx 2.4\thinspace \lambda/R$.
 With only 3 degrees of freedom, $t^\ast = 2.35$, so even a single comparison with
-$\hat\gamma = 0$ needs $\Delta > 5.8\,\lambda/R$. Taking the worst of 15
+$\hat\gamma = 0$ needs $\Delta > 5.8\thinspace \lambda/R$. Taking the worst of 15
 comparisons, with noisy SEs and a randomly varying age spread, roughly triples
 that.
 
@@ -316,8 +316,8 @@ that.
   across subjects, and have the same SD at every site and region. Normality makes
   the t distribution in Step 3 exact. Without it, the result is approximate.
 - **Site differences are additive.** Constant site offsets cancel. A multiplicative
-  scanner bias scales the slopes ($\beta_{rs} = c_s\, \beta_r$), which shows up as a
-  true site difference $\gamma_r^{jk} = (c_j - c_k)\,\beta_r$. Model it with `dslope`,
+  scanner bias scales the slopes ($\beta_{rs} = c_s\thinspace \beta_r$), which shows up as a
+  true site difference $\gamma_r^{jk} = (c_j - c_k)\thinspace \beta_r$. Model it with `dslope`,
   or decide in advance whether Δ applies to raw, harmonized, or log-transformed
   values.
 - **Random ages.** Ages are redrawn in every simulated study. With 5 subjects, the
