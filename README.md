@@ -112,7 +112,7 @@ region's value.
 
 ### Step 1: Each site's mixed model gives per-region OLS slopes
 
-At a single site, collect subject $i$'s five regional values into
+At a single site, collect the five regional values of subject $i$ into
 $\mathbf y_i \in \mathbb R^5$, and let $\mathbf z_i = (1, x_i)^\top$. The analysis
 model `y ~ 0 + region + region:age_c + (1 | subject)` has design matrix
 $X_i = I_5 \otimes \mathbf z_i^\top$ for the coefficients
@@ -232,8 +232,9 @@ $$
 
 ### Step 6: Why simulation is needed
 
-The 15 comparisons are not independent. Conditional on the ages, the
-$\hat\gamma$'s are jointly normal with covariances (multiplied by $S_{xx}$)
+The 15 comparisons are not independent. Conditional on the ages, the 15
+estimates $\hat\gamma_r^{jk}$ are jointly normal, with these covariances (each
+multiplied by $S_{xx}$):
 
 | Pair of comparisons | $S_{xx}\,\mathrm{Cov}$ |
 |---|---|
