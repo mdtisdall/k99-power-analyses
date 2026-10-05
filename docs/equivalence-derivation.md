@@ -210,6 +210,10 @@ $$
 which [`equivalence.py`](../equivalence.py) estimates as the empirical $p$-quantile of $\Delta_{\min}$ across
 `n_sims` simulated studies. No search over $\Delta$ is needed.
 
+The power curve uses the same simulated studies: for each $N$, it reports
+$F(\Delta)$, the fraction of studies with $\Delta_{\min} < \Delta$, at the chosen
+margin `Delta`.
+
 ## Step 8: How the answer scales
 
 With no true site differences ($\delta = 0$) and ages uniform over a range of

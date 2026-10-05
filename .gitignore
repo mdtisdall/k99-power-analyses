@@ -4,3 +4,4 @@ __pycache__/
 .DS_Store
 /group_effect_curve.csv
 /group_effect_curve.png
+/equivalence_curve.png

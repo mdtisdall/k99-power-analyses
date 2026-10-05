@@ -50,9 +50,10 @@ regions. Each site's data are analyzed separately with
 y ~ 0 + region + region:age_c + (1 | subject)
 ```
 
-For a given number of subjects, [`equivalence.py`](equivalence.py) estimates the
-**smallest difference in age effects between sites that we can rule out**, i.e. how
-tightly we can show that the age effects are "the same" across sites.
+For each number of subjects, [`equivalence.py`](equivalence.py) estimates the
+**power** to show that the age effects are "the same" across sites within a chosen
+margin, and the **smallest difference in age effects between sites that we can rule
+out** at the target power.
 
 ### Parameters
 
@@ -61,8 +62,9 @@ test-retest scans.
 
 | Parameter | What it is |
 |---|---|
-| `N_grid` | Number(s) of subjects to evaluate, e.g. `[5]` or `[5, 10, 20]`. |
+| `N_grid` | Numbers of subjects to evaluate (the x-axis of the power curve). Default 5, 10, …, 50. |
 | `target_power` | Required probability that the study shows equivalence. Usually 0.80. |
+| `Delta` | Equivalence margin Δ (outcome units per year) at which the power curve is computed. Default 0.015, a placeholder. |
 | `s_ss` | SD of a whole-scan offset: how much a subject's values shift together, across all regions, from one scan to another. |
 | `sigma` | Measurement-noise SD for one region in one scan. The same for all sites and regions. |
 | `age_min`, `age_max` | Age range of the sample. Ages are drawn uniformly from this range. |
@@ -76,8 +78,23 @@ fixed site offsets, because they cancel out.
 
 ### Output: Δ
 
-The script prints Δ for each number of subjects and saves the table to
-`detectable_delta.csv`. Δ is the **equivalence margin**: a between-site difference
+For each number of subjects, the script prints the **power to show equivalence at
+`Delta`** and the **smallest Δ** that can be shown at the target power. It saves
+the table to `detectable_delta.csv` and plots both curves in
+`equivalence_curve.png`. With the defaults (all noise values are placeholders):
+
+![Power to show equivalence at a margin of 0.015 and smallest margin at 80% power, against number of subjects, for 3 sites and 5 regions](docs/equivalence_curve.png)
+
+| Subjects | Power at Δ = 0.015 | Smallest Δ at 80% power |
+|---|---|---|
+| 5 | 0.00 | 0.048 |
+| 10 | 0.17 | 0.022 |
+| 15 | 0.64 | 0.017 |
+| 20 | 0.90 | 0.014 |
+| 30 | 1.00 | 0.011 |
+| 50 | 1.00 | 0.008 |
+
+Δ is the **equivalence margin**: a between-site difference
 in age slope, in outcome units per year. With the given number of subjects, a study
 has `target_power` chance of showing that every between-site slope difference lies
 within ±Δ. Smaller is better. Compare Δ with the expected age slope: a Δ around 20%

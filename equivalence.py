@@ -3,8 +3,10 @@
 See docs/equivalence-derivation.md for the derivation. Each of the
 5 regions x 3 site pairs = 15 comparisons regresses the per-subject difference
 score D on centered age; sites are "the same" only if every 90% CI lies inside
-(-Delta, +Delta). For a given N, this script reports the smallest Delta for
-which P(all 15 pass) reaches the target power.
+(-Delta, +Delta). For each N, this script reports the power to show
+equivalence at margin Delta, and the smallest Delta for which P(all 15 pass)
+reaches the target power. It saves the table to detectable_delta.csv and plots
+both curves in equivalence_curve.png.
 
 All parameter values below are placeholders. Replace them with estimates from
 prior (ideally traveling-subject / test-retest) data.
@@ -13,10 +15,13 @@ prior (ideally traveling-subject / test-retest) data.
 import numpy as np
 from scipy import stats
 
+from plotting import plot_curves
+
 # ---- Parameters -------------------------------------------------------------
 
-N_grid = [5]                       # number of subjects (each scanned at all 3 sites)
+N_grid = [5, 10, 15, 20, 25, 30, 40, 50]  # numbers of subjects (each scanned at all 3 sites)
 target_power = 0.80                # required P(all 15 TOSTs pass)
+Delta = 0.015                      # margin (outcome units/year) for the power curve
 s_ss = 0.05                        # SD of subject:site offset (shared across regions in a scan)
 sigma = 0.10                       # region-level measurement-noise SD (all sites and regions)
 age_min, age_max = 25, 65          # age distribution: uniform(age_min, age_max)
@@ -69,16 +74,34 @@ def power(N, Delta, **kw):
     return (min_passing_delta(N, **kw) < Delta).mean()
 
 
-# ---- Detectable Delta by N --------------------------------------------------
+# ---- Power curve over N -----------------------------------------------------
 
 if __name__ == "__main__":
     rng = np.random.default_rng(seed)
     kw = dict(s_ss=s_ss, sigma=sigma, dslope=dslope, alpha=alpha,
               age_min=age_min, age_max=age_max, n_sims=n_sims)
-    rows = [(N, detectable_delta(N, target_power, rng=rng, **kw)) for N in N_grid]
-    print(f"Smallest Delta (outcome units/year) with {target_power:.0%} power:")
-    print("   N  Delta")
-    for N, d in rows:
-        print(f"{N:4d}  {d:.4g}")
-    np.savetxt("detectable_delta.csv", rows, delimiter=",", header="N,Delta",
-               comments="", fmt=["%d", "%.6g"])
+    rows = []
+    for N in N_grid:
+        dmin = min_passing_delta(N, rng=rng, **kw)
+        rows.append((N, (dmin < Delta).mean(), np.quantile(dmin, target_power)))
+
+    print(f"Power to show equivalence at Delta = {Delta:g}, and smallest Delta "
+          f"(outcome units/year) with {target_power:.0%} power:")
+    print(f"   N  Power at Delta  Smallest Delta")
+    for N, p, d in rows:
+        print(f"{N:4d}  {p:14.3f}  {d:14.4g}")
+    np.savetxt("detectable_delta.csv", rows, delimiter=",",
+               header="N,power_at_Delta,Delta", comments="",
+               fmt=["%d", "%.4f", "%.6g"])
+
+    x = [r[0] for r in rows]
+    plot_curves(
+        x, "Subjects (each scanned at all 3 sites)",
+        [dict(y=[r[1] for r in rows],
+              title=f"Power to show equivalence at \u0394 = {Delta:g}",
+              ylim=(0, 1), ref=(target_power, f"{target_power:.0%} target")),
+         dict(y=[r[2] for r in rows],
+              title=f"Smallest \u0394 at {target_power:.0%} power (units/year)")],
+        f"3 sites, 5 regions; all 15 TOSTs (90% CIs) must pass",
+        "equivalence_curve.png")
+    print("\nSaved detectable_delta.csv and equivalence_curve.png")

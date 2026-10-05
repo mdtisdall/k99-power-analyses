@@ -24,6 +24,8 @@ with estimates from prior data.
 import numpy as np
 from scipy import optimize, stats
 
+from plotting import plot_curves
+
 # ---- Parameters -------------------------------------------------------------
 
 n_sites = 20                       # number of sites
@@ -130,48 +132,6 @@ def curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, icc,
     return rows
 
 
-def plot_curve(rows, path, title, effect_d, target_power, n_sites):
-    """Power at effect_d and detectable d against subjects per site."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    series, ink, ink2, muted, grid, axis, surface = (
-        "#2a78d6", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb")
-    x = [r["subjects_per_site"] for r in rows]
-    panels = [
-        ([r["power"] for r in rows], f"Power to detect d = {effect_d:g}", (0, 1)),
-        ([r["detectable"] for r in rows],
-         f"Smallest detectable d at {target_power:.0%} power", None),
-    ]
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4.2), facecolor=surface)
-    for ax, (y, label, ylim) in zip(axes, panels):
-        ax.set_facecolor(surface)
-        ax.plot(x, y, color=series, lw=2, solid_joinstyle="round",
-                solid_capstyle="round", marker="o", ms=8,
-                markeredgecolor=surface, markeredgewidth=2, zorder=3)
-        ax.set_title(label, loc="left", color=ink, fontsize=11)
-        ax.set_xlabel(f"Subjects per site ({n_sites} sites)", color=ink2)
-        ax.set_xticks(x)
-        ax.grid(True, axis="y", color=grid, lw=1)
-        ax.set_axisbelow(True)
-        for side in ("top", "right", "left"):
-            ax.spines[side].set_visible(False)
-        ax.spines["bottom"].set_color(axis)
-        ax.tick_params(colors=muted, length=0)
-        if ylim:
-            ax.set_ylim(*ylim)
-        else:
-            ax.set_ylim(0, max(y) * 1.08)
-    axes[0].axhline(target_power, color=muted, lw=1, zorder=2)
-    axes[0].text(x[0], target_power + 0.02, f"{target_power:.0%} target",
-                 color=ink2, fontsize=9)
-    fig.suptitle(title, x=0.01, ha="left", color=ink2, fontsize=10)
-    fig.tight_layout()
-    fig.savefig(path, dpi=150, facecolor=surface)
-    plt.close(fig)
-
-
 # ---- Run --------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -210,6 +170,11 @@ if __name__ == "__main__":
             f.write(f"{r['subjects_per_site']},{r['N']},{r['df']:.1f},"
                     f"{r['power']:.4f},{r['detectable'] / sd_total:.4f},"
                     f"{r['detectable']:.6g}\n")
-    plot_curve(rows, "group_effect_curve.png", summary, effect_d, target_power,
-               n_sites)
+    plot_curves(
+        subjects_per_site, f"Subjects per site ({n_sites} sites)",
+        [dict(y=[r["power"] for r in rows], title=f"Power to detect d = {effect_d:g}",
+              ylim=(0, 1), ref=(target_power, f"{target_power:.0%} target")),
+         dict(y=[r["detectable"] / sd_total for r in rows],
+              title=f"Smallest detectable d at {target_power:.0%} power")],
+        summary, "group_effect_curve.png")
     print("\nSaved group_effect_curve.csv and group_effect_curve.png")
