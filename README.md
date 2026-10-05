@@ -176,8 +176,8 @@ fits would ignore that pairing.
 Substituting the model into $D_{ir}^{jk}$:
 
 $$
-D_{ir}^{jk} = (\mu_{rj} - \mu_{rk}) + \gamma_r^{jk}\, x_i
-+ (w_{ij} - w_{ik}) + (\varepsilon_{irj} - \varepsilon_{irk}),
+D_{ir}^{jk} = (\mu_{rj} - \mu_{rk}) + \gamma_r^{jk}\, x_i +
+(w_{ij} - w_{ik}) + (\varepsilon_{irj} - \varepsilon_{irk}),
 \qquad \gamma_r^{jk} = \delta_{rj} - \delta_{rk}.
 $$
 
