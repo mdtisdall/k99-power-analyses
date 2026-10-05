@@ -51,8 +51,8 @@ each non-reference group, Bonferroni-corrected across the $m = R(K-1)$ tests.
 The power calculation matches a Wald t test with Satterthwaite degrees of freedom,
 which is what lmerTest (R) reports for this model. Software that reports z-based
 p-values (e.g. statsmodels `MixedLM`) is too liberal when the degrees of freedom
-are small: at a nominal $\alpha = 0.005$, its true false-positive rate is 0.012
-with 18 df and 0.007 with 56 df. With one region ($R = 1$) there is no random
+are small: at a nominal $\alpha = 0.005$, its true false-positive rate is 0.007
+with 56 df (the default design with 2 subjects per site) and 0.012 with 18 df. With one region ($R = 1$) there is no random
 effect to fit; use ordinary regression, for which the same formulas hold.
 
 The script's two noise parameters are `sd_total` $= \mathrm{SD}$ and
@@ -163,12 +163,11 @@ subject-to-subject noise from a group comparison.
 
 **What imbalance costs.** When groups are unbalanced within sites, adjusting for
 site costs information ($c_b > c_w$), and a higher $\rho$ puts more weight on
-$c_b$. For example, with 20 sites of 3 subjects, split alternately 2:1 and 1:2 (30
-per group overall), the SE is larger than the ideal $2\thinspace\mathrm{SD}/\sqrt N$
-by about 2%, 4.5%, and 7% for $\rho = 0.1$, $0.5$, and $0.9$. The detectable effect
-grows by the same proportion. A correlation between regions would also matter for a
-different question, whether the group difference *varies across regions*, which
-uses only the regional deviations and their smaller variance $\sigma^2$.
+$c_b$. In one example, 20 sites of 3 subjects split alternately 2:1 and 1:2 (30 per
+group overall), the detectable effect is about 1%, 4%, and 6% larger than for a
+balanced design of the same size (15 sites of 4) when $\rho = 0.1$, $0.5$, and
+$0.9$. More severe imbalance, such as sites that recruit mostly one group, costs
+more.
 
 ## Step 3: The test and its degrees of freedom
 
@@ -190,8 +189,8 @@ $$
 \qquad t_c = t_{1 - \alpha/(2m),\thinspace \mathrm{df}} .
 $$
 
-This is an approximation even for normal data, because the Satterthwaite df are
-(it is exact only when $R = 1$ or $\rho = 1$). With the default design
+Even for normal data this is approximate, because the Satterthwaite df are. It is
+exact only when one part carries all the variance ($R = 1$ or $\rho = 1$). With the default design
 ($N = 200$), $\mathrm{df} \approx 550$, so it is essentially a z test; the df matter
 only for small designs.
 
@@ -229,33 +228,36 @@ and the t critical value is larger.
 group difference of the given size in a particular region. If several regions have
 true effects, the chance of detecting at least one of them is higher.
 
-Bonferroni treats the $m$ tests as unrelated, but under the balanced-sites
-simplification the region estimates are correlated, with correlation $\rho$. So
-Bonferroni is conservative: with 10 regions its family-wise false-positive rate is
+Bonferroni is valid whatever the correlation between tests, but it ignores that
+correlation. Under the balanced-sites simplification the region estimates are
+correlated, with correlation approximately $\rho$, so Bonferroni is conservative.
+With 2 groups, 10 regions, and large df, its family-wise false-positive rate is
 0.047, 0.039, and 0.023 for $\rho = 0.2$, $0.5$, and $0.8$, rather than 0.05. A
-max-T correction (the critical value of the largest of the $m$ correlated
-statistics, e.g. from `multcomp` in R) uses the correlation and would reduce the
-detectable effect by about 0.5%, 2.5%, and 8% for those values of $\rho$. The script
-uses Bonferroni, which is simpler and slightly conservative.
+max-T correction (based on the largest of the $m$ correlated test statistics) uses
+the correlation and would reduce the detectable effect by about 0.5%, 2.5%, and 8%
+for those values of $\rho$. In R, `multcomp` computes it, but for mixed models it
+uses z statistics by default, which are too liberal at small df. The script uses
+Bonferroni, which is simpler and slightly conservative.
 
 ## Numerical checks
 
 [`checks/check_group_effect.py`](../checks/check_group_effect.py) verifies the
 closed-form SE against brute-force GLS for several designs and checks power against
-real mixed-model fits (statsmodels `MixedLM`, REML). Data were simulated from the
-model with the defaults, with region means, age slopes, and random site offsets
-added and an effect of $d = 0.519$ in one region only, then tested at
-$\alpha = 0.005$ using `MixedLM`'s z-based p-values (with about 550 df, z and t are
-practically the same here). In 1500 simulated studies:
+real mixed-model fits (statsmodels `MixedLM`, REML). Data are simulated from the
+model with region means, age slopes, and random site offsets added and an effect,
+in one region only, of the size the closed form says is detectable with 80% power.
+Each fit's Wald statistic is compared with the t critical value at the closed-form
+Satterthwaite df, as lmerTest would do, at $\alpha = 0.005$:
 
-| Region | Rejection rate | Expected |
-|---|---|---|
-| with the effect (power) | 0.808 | 0.80 (Monte Carlo SE 0.010) |
-| without an effect (false positives) | 0.0067 | 0.005 (Monte Carlo SE 0.0018) |
+| Design | Studies | Power (expected 0.80) | False positives (expected 0.005) |
+|---|---|---|---|
+| 20 sites × 10 subjects (default), $d = 0.519$ | 1500 | 0.797 (MC SE 0.010) | 0.0027 (MC SE 0.0018) |
+| 20 sites × 2 subjects (56 df), $d = 1.222$ | 700 | 0.787 (MC SE 0.015) | 0.0057 (MC SE 0.0027) |
 
-Both agree with the closed-form calculation within Monte Carlo error. An
-independent check at $N = 40$, where the df matter more, gave power 0.796
-(Monte Carlo SE 0.015) with t-based critical values.
+To reproduce: `python3 checks/check_group_effect.py 1500 10` and
+`python3 checks/check_group_effect.py 700 2` (about 10 and 4 minutes).
+
+Both agree with the closed-form calculation within Monte Carlo error.
 
 ## Assumptions
 
@@ -269,14 +271,18 @@ independent check at $N = 40$, where the df matter more, gave power 0.796
   already relative to the SD. To handle unequal SDs, fit region-specific residual
   variances (e.g. `nlme::lme` with `weights = varIdent(form = ~ 1 | region)`) or
   analyze each region separately. The detectable $d$ then applies to each region
-  relative to its own SD.
+  relative to its own SD. A separate analysis per region has only $N - K - S$ df
+  (18 with 2 subjects per site at 20 sites, against the script's 56), so at small
+  $n$ its power is a little lower than the script reports.
 - **Site effects shift all regions equally.** If scanners affect regions
   differently (site-by-region effects), the model above leaves those effects in
   the residual. Under the balanced-sites simplification the group estimate stays
   unbiased, but the estimated residual variance is inflated, so the SE is larger
-  and power is lower than calculated (e.g. an SE of 0.147 instead of 0.142 SD when
-  site-by-region effects have an SD of 0.3). Adding `site:region` to the model
-  removes this cost.
+  and power is lower than calculated (e.g. an SE of 0.147 instead of 0.142 SD at
+  the default design with 10 subjects per site and $\rho = 0.5$, when
+  site-by-region effects have an SD of 0.3 SD). Adding `site:region` to the model
+  removes this cost, though it also lowers the df to $(R - 1)(N - K - S)$ for the
+  regional deviations, so at small $n$ the script slightly overstates the df.
 - **Balanced-sites simplification.** Every site recruits equally from each group
   (see [above](#balanced-sites-simplification)). This gives the smallest detectable
   effect for a given total $N$. Imbalance within sites makes it larger.

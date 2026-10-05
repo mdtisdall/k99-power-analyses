@@ -119,7 +119,7 @@ $$
 The subject effect $u_i$, the regional deviation $v_{ir}$, and the common slope
 $\beta_r$ cancel exactly. Constant site offsets go into the intercept. The errors are
 independent across subjects and distributed $N(0, 2\lambda^2)$. So, conditional on
-the ages, this is a standard normal simple linear regression:
+the ages, this is a simple linear regression with normal errors:
 
 $$
 \hat\gamma_r^{jk} \sim N\Big(\gamma_r^{jk},\ \frac{2\lambda^2}{S_{xx}}\Big),
@@ -152,7 +152,8 @@ $$
 Equivalently, the $100(1-2\alpha)$% CI (90% for $\alpha = 0.05$) lies inside
 $(-\Delta, \Delta)$. The test has level $\alpha$. It is conservative (rejects less
 often than $\alpha$ when $\lvert\gamma\rvert = \Delta$) when the standard error is
-large relative to $\Delta$, e.g. a rate of 0.026 instead of 0.05 at $N = 5$.
+large relative to $\Delta$: e.g. 0.026 instead of 0.05 at $N = 5$ with
+$\Delta = 0.01$ and the placeholder noise values, where $\Delta$ is about 1.5 SE.
 
 ## Step 5: Combining the 15 comparisons
 
@@ -160,6 +161,33 @@ The claim "the age effects are the same at all three sites" means that
 $\lvert\gamma_r^{jk}\rvert < \Delta$ for all 5 regions and all 3 site pairs. All 15
 tests must pass, so no multiplicity correction is needed (Berger, 1982); the price
 is lower power. Power is the probability that all 15 pass.
+
+### Why 15 pairwise tests, not one overall test
+
+- **An overall F test of site × age answers the opposite question.** Its null
+  hypothesis is that the slopes are equal, so a non-significant result only means
+  that a difference was not detected. A small or noisy study would "pass" most
+  easily. To show that sites agree, agreement has to be the alternative hypothesis,
+  which is what equivalence tests do.
+- **Combining p-values (e.g. Fisher's method) answers "is at least one comparison
+  significant?"** The claim here needs *every* comparison to be within the margin.
+  A combined test could declare the sites the same while one region clearly
+  differs.
+- **Overall equivalence tests exist but make a weaker claim.** Tests based on the
+  noncentral F distribution (Wellek, 2010) show that an *average* distance between
+  sites, pooled over regions, is small. That allows one region or one pair of sites
+  to differ by more than Δ as long as the others are close, and the margin is
+  usually expressed relative to the noise SD rather than in outcome units. The
+  claim here is region-specific: each region's age slope is the same at every site.
+- **Why all three pairs.** "No two sites differ by more than Δ" is the most direct
+  definition of "the same". Two comparisons are not enough: if sites 1 and 2 and
+  sites 1 and 3 each differ by less than Δ, sites 2 and 3 can still differ by up to
+  2Δ. Comparing each site with the average of the three would allow pairwise
+  differences of up to 1.5Δ.
+- **The cost.** Requiring all 15 tests to pass needs no correction for multiple
+  comparisons, but it is somewhat conservative: more powerful tests of the same
+  claim exist but are more complex and can behave oddly (Berger and Hsu, 1996). The
+  power reported by the script already includes this cost.
 
 ## Step 6: Why simulation is needed
 
@@ -188,7 +216,8 @@ study it:
    $\widehat{\mathrm{SE}}$ in closed form (Step 3).
 
 It leaves out $\mu$, $\beta_r$, $u_i$, and $v_{ir}$, because they cancel exactly
-(Step 3). Ages are redrawn in every simulated study, so the result averages over
+(Step 3). The true site differences $\delta$ are not simulated but added
+exactly (Step 7). Ages are redrawn in every simulated study, so the result averages over
 possible samples of ages.
 
 ## Step 7: Power and the smallest detectable Δ
@@ -199,15 +228,18 @@ and it is rarely true. The script instead assumes site deviations that are a
 fixed fraction of the margin, $\delta_{rs} = f_{rs}\thinspace\Delta$ with
 $f$ = `true_dev`. The default is $f_{r3} = 0.25$ for every region: site 3's age
 slope differs from the other two by $0.25\Delta$. So $\gamma_r^{jk} = g_r^{jk}\Delta$
-with $g = 0.25$ for pairs (1,3) and (2,3) and $g = 0$ for pair (1,2). This matters: at
-$N = 20$, power at $\Delta = 0.015$ is 0.90 with no true difference, 0.70 with
-$0.25\Delta$, and 0.15 with $0.5\Delta$.
+with $g = -0.25$ for pairs (1,3) and (2,3) and $g = 0$ for pair (1,2); only the
+size of $g$ affects power. Because the true difference is a fraction of $\Delta$,
+the smallest-Δ curve assumes a different absolute true difference at each $N$
+(0.25 times the Δ found there). This matters: at $N = 20$, power at
+$\Delta = 0.015$ is 0.90 with no true difference, about 0.7 with $0.25\Delta$,
+and 0.15 with $0.5\Delta$.
 
 **The smallest margin each study passes.** Write each slope estimate as
-$\hat\gamma = \gamma + b$, where $b$ is its noise part. The true difference shifts
+$\hat\gamma_r^{jk} = \gamma_r^{jk} + b_r^{jk}$, where $b_r^{jk}$ is its noise part. The true difference shifts
 the estimate by exactly $\gamma$ and does not change $\widehat{\mathrm{SE}}$ (the
-residuals are unaffected). So with $\gamma = g\Delta$ and $\lvert g \rvert < 1$, the
-two conditions in Step 4 become
+residuals are unaffected). So with $\gamma = g\Delta$ and $\lvert g \rvert < 1$ (dropping the
+indices), the two conditions in Step 4 become
 
 $$
 (1 - g)\thinspace\Delta > b + t^\ast\thinspace\widehat{\mathrm{SE}}
@@ -220,8 +252,8 @@ margin it passes:
 
 $$
 \Delta_{\min} = \max_{r,\thinspace (j,k)} \max\Big(
-\frac{b + t^\ast\thinspace\widehat{\mathrm{SE}}}{1 - g},\quad
-\frac{t^\ast\thinspace\widehat{\mathrm{SE}} - b}{1 + g}\Big).
+\frac{b_r^{jk} + t^\ast\thinspace\widehat{\mathrm{SE}}_r^{jk}}{1 - g_r^{jk}},\quad
+\frac{t^\ast\thinspace\widehat{\mathrm{SE}}_r^{jk} - b_r^{jk}}{1 + g_r^{jk}}\Big).
 $$
 
 With $g = 0$ this is $\lvert b\rvert + t^\ast\thinspace\widehat{\mathrm{SE}}$. The
@@ -244,23 +276,24 @@ $R$ = `age_max − age_min`, the distribution of every $\Delta_{\min}$ is
 proportional to $\lambda / R$. Hence
 
 $$
-\Delta^\ast_p = \frac{\sqrt{\sigma_w^2 + \sigma^2}}{R}\thinspace g_p(N, \rho, f),
+\Delta^\ast_p = \frac{\sqrt{\sigma_w^2 + \sigma^2}}{R}\thinspace k_p(N, \rho, f),
 $$
 
-where $g_p$ depends only on $N$, $\rho$, the planning scenario $f$, and $p$. By
-simulation, for $N = 5$ and $p = 0.8$:
+where $k_p$ depends only on $N$, $\rho$, the planning scenario $f$, and $p$. By
+simulation (200,000 studies), for $N = 5$ and $p = 0.8$:
 
 | $\rho$ | 0 | 0.2 | 0.5 | 0.8 |
 |---|---|---|---|---|
-| $g$, no true difference | 17.2 | 17.1 | 16.7 | 15.8 |
-| $g$, default scenario ($0.25\Delta$) | 20.2 | 19.9 | 19.4 | 18.1 |
+| $k$, no true difference | 17.1 | 17.0 | 16.7 | 15.8 |
+| $k$, default scenario ($0.25\Delta$) | 20.0 | 19.8 | 19.2 | 18.0 |
 
 So the answer depends mostly on the **total** scan-level noise relative to the age
 range, and little on how that noise splits between whole-scan offsets and
 region-level noise. With the placeholder values ($\lambda = 0.112$, $R = 40$,
-$\rho = 0.2$), this gives $\Delta^\ast_{0.8} \approx 0.112 / 40 \times 19.9 \approx 0.056$.
+$\rho = 0.2$), this gives $\Delta^\ast_{0.8} \approx 0.112 / 40 \times 19.8 \approx 0.055$,
+matching the script's 0.056 within Monte Carlo error.
 
-Why $g$ is so large at $N = 5$: for a single comparison, $S_{xx}$ is about
+Why $k$ is so large at $N = 5$: for a single comparison, $S_{xx}$ is about
 $(N-1)R^2/12$, so $\mathrm{SE} \approx \sqrt{24/(N-1)}\thinspace \lambda/R \approx 2.4\thinspace \lambda/R$.
 With only 3 degrees of freedom, $t^\ast = 2.35$, so even a single comparison with
 $\hat\gamma = 0$ needs $\Delta > 5.8\thinspace \lambda/R$. Taking the worst of 15
@@ -287,11 +320,11 @@ ways. First, the critical value is large: $t^\ast = 2.35$ with 3 degrees of free
 at $N = 5$, against about 1.70 with a pooled estimate. Second, each separate
 standard error is itself very noisy, and because all 15 comparisons must pass, the
 one that happens to be estimated largest decides the outcome. A pooled estimate is
-close to the true standard error and removes both costs. In the default scenario
-(smallest Δ at 80% power, with the pooled version approximated by averaging the
-residual variances of the 10 independent comparisons):
+close to the true standard error and nearly removes both costs. In the default
+scenario (smallest Δ at 80% power, with the pooled version approximated by averaging
+the residual variances of the 10 non-redundant comparisons, with $10(N-2)$ df):
 
-| N | Separate SEs (script) | Pooled SE | Known variance (best possible) |
+| N | Separate SEs (script) | Pooled SE | Known variance (benchmark) |
 |---|---|---|---|
 | 5 | 0.056 | 0.041 | 0.040 |
 | 10 | 0.026 | 0.024 | 0.024 |
@@ -306,7 +339,9 @@ sites and regions, or the model allows for the differences. If one site or regio
 is noisier, a pooled standard error understates its uncertainty and the test
 becomes too liberal for it. The comparisons are also correlated (Step 6), so a
 pooled variance has fewer effective degrees of freedom than a simple count
-suggests; the joint mixed model accounts for this, a simple average does not.
+suggests, especially when much of the noise is shared across regions (at
+$\rho = 0.8$ and $N = 5$, about 8 instead of 30), which shrinks the gain. The joint
+mixed model accounts for this; a simple average does not.
 
 ## Assumptions
 
@@ -341,8 +376,10 @@ suggests; the joint mixed model accounts for this, a simple average does not.
 
 [`checks/check_equivalence.py`](../checks/check_equivalence.py) verifies the
 closed-form $\Delta_{\min}$ with true differences against brute-force simulation
-(power 0.578 vs 0.580 at $N = 10$; 0.689 vs 0.679 at $N = 20$, Monte Carlo SE
-0.009), that per-site mixed-model slopes equal per-region OLS slopes (to
+that builds the differences into the data, for the default scenario (power 0.578
+vs 0.580 at $N = 10$; 0.689 vs 0.679 at $N = 20$) and a scenario with mixed signs
+and sizes across regions (0.417 vs 0.432 at $N = 15$; a 12,000-study rerun gave
+0.419 vs 0.419), all within Monte Carlo error (SE about 0.009), that per-site mixed-model slopes equal per-region OLS slopes (to
 $10^{-16}$), and the scaling in Step 8 (a factor of exactly 6 for 3 times the noise
 and half the age range). The covariance table in Step 6 and the $t_{N-2}$
 distribution in Step 3 were also checked by simulation during development.
@@ -351,11 +388,15 @@ distribution in Step 3 were also checked by simulation during development.
 
 - Berger, R. L. (1982). Multiparameter hypothesis testing and acceptance sampling.
   *Technometrics*, 24(4), 295–300.
+- Berger, R. L., & Hsu, J. C. (1996). Bioequivalence trials, intersection-union
+  tests and equivalence confidence sets. *Statistical Science*, 11(4), 283–319.
 - Kruskal, W. (1968). When are Gauss–Markov and least squares estimators identical?
   A coordinate-free approach. *Annals of Mathematical Statistics*, 39(1), 70–75.
 - Schuirmann, D. J. (1987). A comparison of the two one-sided tests procedure and
   the power approach for assessing the equivalence of average bioavailability.
   *Journal of Pharmacokinetics and Biopharmaceutics*, 15(6), 657–680.
+- Wellek, S. (2010). *Testing Statistical Hypotheses of Equivalence and
+  Noninferiority* (2nd ed.). CRC Press.
 - Zellner, A. (1962). An efficient method of estimating seemingly unrelated
   regressions and tests for aggregation bias. *Journal of the American Statistical
   Association*, 57(298), 348–368.

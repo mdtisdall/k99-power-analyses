@@ -1,6 +1,7 @@
 """Numerical checks of docs/group-effect-derivation.md.
 
-Run from the repository root:  python3 checks/check_group_effect.py [n_sims]
+Run from the repository root:
+    python3 checks/check_group_effect.py [n_sims] [subjects_per_site]
 Needs numpy, scipy, pandas, statsmodels (pip install pandas statsmodels).
 The mixed-model simulation takes about 0.4 s per study; the derivation quotes
 1500 studies (about 10 minutes). The default is 200.
@@ -12,7 +13,10 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 
-from group_effect import make_design, group_se, dummies
+from scipy import stats
+
+from group_effect import (make_design, group_se, dummies, power_curve_inputs,
+                          detectable_effect)
 
 warnings.filterwarnings("ignore")
 rng = np.random.default_rng(0)
@@ -35,13 +39,20 @@ for S, n, K, R, rho in [(20, 10, 2, 10, 0.5), (20, 3, 2, 10, 0.9), (4, 7, 3, 6, 
     print(f"1. S={S} n={n} K={K} R={R} region_corr={rho}: "
           f"max |GLS - closed form| = {np.abs(gls - se[:, None]).max():.1e}")
 
-# 2. Power and false positives from real mixed-model fits at the default design.
-S, n, K, R, rho, effect, a = 20, 10, 2, 10, 0.5, 0.5193, 0.005
+# 2. Power and false positives from real mixed-model fits. Each fit's Wald
+#    statistic (estimate / SE) is compared with the t critical value at the
+#    closed-form Satterthwaite df, as lmerTest would; MixedLM's own p-values are
+#    z-based and would be too liberal at small df.
 n_sims = int(sys.argv[1]) if len(sys.argv) > 1 else 200
+n = int(sys.argv[2]) if len(sys.argv) > 2 else 10           # subjects per site
+S, K, R, rho, a = 20, 2, 10, 0.5, 0.005
+se_d, df_d = power_curve_inputs(S, n, K, R, 1.0, rho, 25, 65, 500, np.random.default_rng(1))
+effect = detectable_effect(se_d[:, 0], df_d[:, 0], a, 0.8)
 hit = false_pos = 0
 for _ in range(n_sims):
     site, group, x = make_design(S, n, K, 25, 65, rng)
     N = site.size
+    tc = stats.t.ppf(1 - a / 2, group_se(site, group, x, S, K, R, 1.0, rho)[1][0])
     y = (np.sqrt(rho) * rng.normal(size=(N, 1)) + np.sqrt(1 - rho) * rng.normal(size=(N, R))
          + rng.normal(size=R)[None]                       # region means
          + np.linspace(-.02, .02, R)[None] * x[:, None]   # region age slopes
@@ -50,9 +61,12 @@ for _ in range(n_sims):
     d = pd.DataFrame(dict(y=y.ravel(), region=np.tile(np.arange(R), N),
                           age_c=np.repeat(x, R), site=np.repeat(site, R),
                           group=np.repeat(group, R), subject=np.repeat(np.arange(N), R)))
-    p = smf.mixedlm("y ~ 0 + C(region) + C(region):age_c + C(site) + C(region):group",
-                    d, groups="subject").fit(reml=True).pvalues
-    hit += p["C(region)[0]:group"] < a
-    false_pos += p["C(region)[1]:group"] < a
-print(f"2. {n_sims} mixed-model fits: power {hit / n_sims:.3f} (expect 0.80, MC SE "
-      f"{np.sqrt(.16 / n_sims):.3f}); false positives {false_pos / n_sims:.4f} (expect {a})")
+    fit = smf.mixedlm("y ~ 0 + C(region) + C(region):age_c + C(site) + C(region):group",
+                      d, groups="subject").fit(reml=True)
+    t = fit.params / fit.bse
+    hit += abs(t["C(region)[0]:group"]) > tc
+    false_pos += abs(t["C(region)[1]:group"]) > tc
+print(f"2. {S} sites x {n} subjects, effect d = {effect:.3f} in one region "
+      f"(closed-form power 0.80), {n_sims} mixed-model fits: power {hit / n_sims:.3f} "
+      f"(MC SE {np.sqrt(.16 / n_sims):.3f}); false positives {false_pos / n_sims:.4f} "
+      f"(expect {a})")

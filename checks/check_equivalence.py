@@ -39,12 +39,15 @@ def brute_force_power(N, Delta, true_dev, n_sims, sd_scan=.05, sd_noise=.10,
 
 
 # 1. Closed-form smallest passing Delta (with true differences) vs brute force.
-dev = np.zeros((5, 3)); dev[:, 2] = 0.25
-for N, Delta in [(10, 0.022), (20, 0.015)]:
-    closed = (min_passing_delta(N, true_dev=dev, n_sims=40000, rng=1) < Delta).mean()
-    brute = brute_force_power(N, Delta, dev, 3000)
-    print(f"1. N={N}, Delta={Delta}: closed form {closed:.3f}, brute force {brute:.3f} "
-          f"(MC SE {np.sqrt(brute * (1 - brute) / 3000):.3f})")
+dev = np.zeros((5, 3)); dev[:, 2] = 0.25                 # default scenario
+mixed = np.array([[0, .3, -.2], [.1, -.4, 0], [0, 0, 0],    # mixed signs and sizes
+                  [-.2, .2, .5], [.3, 0, -.3]])
+for label, d, N, Delta in [("default", dev, 10, 0.022), ("default", dev, 20, 0.015),
+                           ("mixed-sign", mixed, 15, 0.025)]:
+    closed = (min_passing_delta(N, true_dev=d, n_sims=40000, rng=1) < Delta).mean()
+    brute = brute_force_power(N, Delta, d, 3000)
+    print(f"1. {label} scenario, N={N}, Delta={Delta}: closed form {closed:.3f}, "
+          f"brute force {brute:.3f} (MC SE {np.sqrt(brute * (1 - brute) / 3000):.3f})")
 
 # 2. Per-site mixed-model slopes equal per-region OLS slopes (GLS = OLS).
 N = 15

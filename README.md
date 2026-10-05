@@ -31,8 +31,9 @@ Two power analyses for multi-site MRI studies:
    python3 group_effect.py
    ```
 
-   Each run takes a few seconds and writes a table (`.csv`) and a plot (`.png`) to
-   the current folder. On Windows, type `python` instead of `python3`.
+   Each run takes a few seconds (the first run can take longer while matplotlib
+   sets itself up) and writes a table (`.csv`) and a plot (`.png`) to the current
+   folder. On Windows, type `python` instead of `python3`.
 
 (With Nix, `nix-shell --run "python3 equivalence.py"` does steps 1 and 3 together,
 and likewise for `group_effect.py`.)
@@ -43,7 +44,8 @@ design and with estimates from prior data.
 The plots shown below are copies in `docs/`, made with the default parameters. They
 don't update when you change the parameters; to refresh them, copy the new `.png`
 files into `docs/`. The [`checks/`](checks) folder has scripts that verify the
-derivations numerically (they also need pandas and statsmodels).
+derivations numerically; they also need pandas and statsmodels
+(`python3 -m pip install pandas statsmodels`).
 
 ---
 
@@ -63,7 +65,8 @@ and the **smallest Δ** that can be shown at the target power.
 
 The test itself does not use the per-site mixed models. It is 15 ordinary
 regressions, one per region and pair of sites, of each subject's between-site
-difference on age (see [How it works](#how-it-works)).
+difference on age, and **all 15** must show equivalence (see
+[How it works](#how-it-works)).
 
 ### Parameters
 
@@ -83,19 +86,25 @@ difference on age (see [How it works](#how-it-works)).
 **Planning scenario.** Power must be computed for some assumed true difference
 between sites. Assuming the sites are exactly equal is the best case and rarely
 true; small true differences reduce power a lot. With the defaults at N = 20, power
-at Δ = 0.015 is 0.90 if the sites are exactly equal, 0.70 with the default
+at Δ = 0.015 is 0.90 if the sites are exactly equal, about 0.7 with the default
 0.25Δ difference, and 0.15 with a 0.5Δ difference.
 
 **Estimating `sd_scan` and `sd_noise`.** Use traveling-subject data: the same
 subjects scanned on the scanners in question. Test-retest data from a single
 scanner understate the noise, because they miss differences in how each scanner
-measures each subject. For each region and pair of sites, regress the subjects'
-between-site differences on age and keep the residuals. Then:
+measures each subject. With N traveling subjects, for each region and pair of
+sites, regress the subjects' between-site differences on age and keep the residuals.
+Divide sums of squares and cross-products by **N − 2** (not N or N − 1, which
+underestimate). Then:
 
-- λ² = (average residual variance) / 2;
+- λ² (the total scan-level variance of one region's value) = (average residual
+  variance) / 2;
 - `sd_scan`² = (average covariance between the residuals of two different regions,
   for the same pair of sites) / 2;
-- `sd_noise`² = λ² − `sd_scan`².
+- `sd_noise`² = λ² − `sd_scan`² (use 0 if this comes out negative).
+
+With few traveling subjects these estimates are imprecise, so use upper plausible
+values rather than point estimates.
 
 You don't need between-subject variance, regional means, the true age slopes, or
 fixed site offsets, because they cancel out.
@@ -121,7 +130,8 @@ the table to `equivalence_curve.csv` and plots both curves in
 Δ is the **equivalence margin**: a between-site difference in age slope, in
 outcome units per year, applied to every region. With the given number of subjects,
 a study has `target_power` chance of showing that every between-site slope
-difference lies within ±Δ. Smaller is better. Whether a given Δ is small enough is
+difference lies within ±Δ, assuming the true site differences are `true_dev` × that
+same Δ (by default 0.25Δ). Smaller is better. Whether a given Δ is small enough is
 a scientific judgment: compare it with the expected age slopes and with the
 smallest site difference that would matter for your conclusions. Choose the margin
 before you see the data.
@@ -142,6 +152,17 @@ exactly the difference between the two sites' age slopes from the per-site model
 Its 90% CI must fall inside (−Δ, +Δ), and the sites count as "the same" only if
 **all 15** comparisons pass. The script simulates many studies and reports how often
 that happens.
+
+Why pairwise tests rather than one overall test? An overall F test of site × age
+has "no difference" as its null hypothesis, so passing it only means a difference
+wasn't detected; a small, noisy study would pass most easily. Combining p-values
+(e.g. Fisher's method) asks whether *any* comparison is significant, not whether
+*all* are within the margin. Overall equivalence tests exist, but they show that an
+average difference is small, which allows one region to differ by more than Δ.
+Testing every pair is the direct way to show that no two sites differ by more than
+Δ in any region. See the
+[derivation](docs/equivalence-derivation.md#why-15-pairwise-tests-not-one-overall-test)
+for details.
 
 Full derivation and assumptions: [docs/equivalence-derivation.md](docs/equivalence-derivation.md).
 
@@ -170,7 +191,9 @@ detectable** at the target power.
 > assumed to recruit the same number of subjects from each group. This is a
 > planning simplification, not a requirement of the analysis. It gives the best
 > case for a given total N. Groups that are unbalanced within sites need a somewhat
-> larger effect to reach the same power, typically 2–7% larger. Use values of
+> larger effect to reach the same power: in one example (20 sites of 3, split
+> alternately 2:1 and 1:2), about 1–6% larger than a balanced design of the same
+> size, depending on `region_corr`. More severe imbalance costs more. Use values of
 > `subjects_per_site` divisible by `n_groups`; otherwise the script marks those rows
 > and warns that the simplification holds only approximately.
 
@@ -179,7 +202,7 @@ detectable** at the target power.
 | Parameter | Default | What it is |
 |---|---|---|
 | `n_sites` | 20 | Number of sites. |
-| `subjects_per_site` | 2, 4, …, 20 | List of subjects-per-site values to evaluate (the x-axis of the power curve). Each is split equally across groups (balanced-sites simplification). |
+| `subjects_per_site` | 2, 4, …, 20 | List of subjects-per-site values to evaluate (the x-axis of the power curve). Each site is split as equally as possible across groups (see the balanced-sites note). |
 | `n_groups` | 2 | Number of groups. Group 0 is the reference; each other group is compared with it. |
 | `n_regions` | 10 | Number of regions (and of Bonferroni-corrected tests, with 2 groups). |
 | `sd_total` | 1.0 | SD of one region's value across subjects with the same group, site, and age. Only scales the answer in outcome units; leave at 1 to get the answer in SD units. |
@@ -208,10 +231,10 @@ detectable d), using whichever of these the source reports:
 |---|---|---|
 | Group means and an SD | (mean₁ − mean₀) / SD | Use the pooled within-group SD. If that SD is not adjusted for age, d comes out **smaller** than the script's d. If the groups differ in age, the unadjusted means can also be off in either direction. |
 | A group difference from a regression or mixed model with covariates | difference / residual SD | For a mixed model like the one above, the SD is √(τ² + σ²), the square root of the subject variance plus the residual variance. This matches the script's definition. |
-| A two-sample t statistic, or the t for the group term in a regression | t × √(1/n₀ + 1/n₁) | n₀ and n₁ are the group sizes in that study. Exact for a two-sample t, and for a regression when the groups don't differ on the covariates. If they do (e.g. groups differ in age), this underestimates d. |
+| A two-sample t statistic, or the t for the group term in a regression | t × √(1/n₀ + 1/n₁) | n₀ and n₁ are the group sizes in that study. Exact for a two-sample t, and for a regression when the groups have the same covariate means. If they don't (e.g. groups differ in age), this underestimates d. |
 | A difference with a 95% CI (lower, upper) | t = difference / SE, with SE = (upper − lower) / 3.92; then use the row above | 3.92 = 2 × 1.96 assumes a large-sample CI. For a t-based CI from a small study, use 2 × t₀.₉₇₅ with that study's df; 3.92 overstates the SE, so d comes out smaller. |
 | Partial η² for the group effect (2 groups) | t = √(df × η² / (1 − η²)); then use the t row | df is the error df. For large, equal groups, d ≈ 2√(η² / (1 − η²)). |
-| A point-biserial correlation r between group and outcome | t = r √(df / (1 − r²)); then use the t row | df = n₀ + n₁ − 2. For large, equal groups, d ≈ 2r / √(1 − r²). |
+| A point-biserial correlation r between group and outcome | t = r √(df / (1 − r²)); then use the t row | df = n₀ + n₁ − 2 (minus the number of covariates for a partial r). A plain r is not adjusted for age, so, as for group means, d comes out smaller. For large, equal groups, d ≈ 2r / √(1 − r²). |
 | Hedges' g | ≈ d | g is d with a small-sample correction. |
 | An effect in outcome units, with `sd_total` known for your study | effect / `sd_total` | |
 

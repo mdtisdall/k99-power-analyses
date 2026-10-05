@@ -31,7 +31,7 @@ from plotting import plot_curves
 # ---- Parameters -------------------------------------------------------------
 
 n_sites = 20                       # number of sites
-subjects_per_site = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]  # values to evaluate; each split equally across groups
+subjects_per_site = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]  # values to evaluate; each split as equally as possible
 n_groups = 2                       # group 0 is the reference group
 n_regions = 10                     # number of regions
 sd_total = 1.0                     # SD of one region's value across subjects (same group, site, age)
@@ -63,16 +63,34 @@ def make_design(n_sites, subjects_per_site, n_groups, age_min, age_max, rng):
 def check_design(n_sites, subjects_per_site, n_groups, n_regions, region_corr,
                  age_min, age_max):
     """Raise a clear error for designs the model cannot be fit to."""
-    N = n_sites * subjects_per_site
-    problems = []
-    if n_sites < 1 or subjects_per_site < 1 or n_regions < 1:
-        problems.append("n_sites, subjects_per_site, and n_regions must be at least 1")
-    if n_groups < 2:
-        problems.append("n_groups must be at least 2")
-    if N - (n_groups + n_sites) < 1:
-        problems.append(f"{n_sites} sites x {subjects_per_site} subjects leaves no "
-                        f"degrees of freedom for {n_groups} groups and {n_sites} site "
-                        f"effects (need N > n_groups + n_sites)")
+    counts = dict(n_sites=n_sites, subjects_per_site=subjects_per_site,
+                  n_groups=n_groups, n_regions=n_regions)
+    problems = [f"{k} must be a whole number (got {v})"
+                for k, v in counts.items() if int(v) != v]
+    if not problems:
+        N = n_sites * subjects_per_site
+        if n_sites < 1 or subjects_per_site < 1 or n_regions < 1:
+            problems.append("n_sites, subjects_per_site, and n_regions must be at least 1")
+        elif n_groups < 2:
+            problems.append("n_groups must be at least 2")
+        elif N - (n_groups + n_sites) < 1:
+            problems.append(f"{n_sites} sites x {subjects_per_site} subjects leaves no "
+                            f"degrees of freedom for {n_groups} groups and {n_sites} "
+                            f"site effects (need N > n_groups + n_sites)")
+        else:
+            # Each group must be comparable with the reference group within
+            # sites; otherwise its effect is confounded with site.
+            site, group, age_c = make_design(int(n_sites), int(subjects_per_site),
+                                             int(n_groups), 0, 1,
+                                             np.random.default_rng(0))
+            Zb = np.column_stack([np.ones(N), age_c, dummies(group, n_groups),
+                                  dummies(site, n_sites)])
+            if np.linalg.matrix_rank(Zb) < Zb.shape[1]:
+                problems.append(f"with {subjects_per_site} subjects per site and "
+                                f"{n_groups} groups, some group effects can't be "
+                                f"separated from site effects (a group never shares "
+                                f"a site with the reference group); use more "
+                                f"subjects per site")
     if not age_max > age_min:
         problems.append("age_max must be greater than age_min")
     if not 0 <= region_corr <= 1:
@@ -116,6 +134,8 @@ def power_curve_inputs(n_sites, subjects_per_site, n_groups, n_regions, sd_total
     """SE and df for each contrast, for n_designs random age draws."""
     check_design(n_sites, subjects_per_site, n_groups, n_regions, region_corr,
                  age_min, age_max)
+    n_sites, subjects_per_site, n_groups, n_regions = map(
+        int, (n_sites, subjects_per_site, n_groups, n_regions))
     out = [group_se(*make_design(n_sites, subjects_per_site, n_groups,
                                  age_min, age_max, rng),
                     n_sites, n_groups, n_regions, sd_total, region_corr)
@@ -136,6 +156,8 @@ def power(effect, se, df, alpha_test):
 def detectable_effect(se, df, alpha_test, target_power):
     """Smallest group difference with power >= target_power."""
     hi = 20 * se.max()
+    while power(hi, se, df, alpha_test) < target_power:   # very small df
+        hi *= 2
     return optimize.brentq(lambda e: power(e, se, df, alpha_test) - target_power,
                            0, hi, xtol=1e-10 * hi)
 

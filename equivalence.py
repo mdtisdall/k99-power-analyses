@@ -3,12 +3,14 @@
 See docs/equivalence-derivation.md for the derivation. Every subject is scanned
 at all 3 sites. Each of the 5 regions x 3 site pairs = 15 comparisons regresses
 the per-subject difference between two sites on centered age; the sites are
-"the same" only if every 90% CI for that slope lies inside (-Delta, +Delta).
+"the same" only if every 100(1 - 2 alpha)% CI for that slope (90% by default)
+lies inside (-Delta, +Delta).
 
 For each N, this script reports the power to show equivalence at margin Delta,
 and the smallest Delta for which P(all 15 pass) reaches the target power. Both
-assume the planning scenario in true_dev (by default, site 3's age slope
-differs from the others by 0.25 * Delta in every region). It saves the table to
+assume the planning scenario in true_dev: true site differences that are a
+fixed fraction of whatever Delta is being evaluated (by default, site 3's age
+slope differs from the others by 0.25 * Delta in every region). It saves the table to
 equivalence_curve.csv and plots both curves in equivalence_curve.png.
 
 All parameter values below are placeholders. Replace them with estimates from
@@ -40,10 +42,14 @@ seed = 1
 # ---- Simulation -------------------------------------------------------------
 
 
-def _check(N, true_dev):
-    if N < 3:
-        raise ValueError(f"N must be at least 3 (got {N}); each regression has N - 2 df.")
-    if np.shape(true_dev) != (N_REGIONS, N_SITES):
+def _check(N, true_dev, age_min=0, age_max=1):
+    if int(N) != N or N < 3:
+        raise ValueError(f"N must be a whole number of at least 3 (got {N}); "
+                         f"each regression has N - 2 df.")
+    if not age_max > age_min:
+        raise ValueError("age_max must be greater than age_min")
+    true_dev = np.asarray(true_dev, dtype=float)
+    if true_dev.shape != (N_REGIONS, N_SITES):
         raise ValueError(f"true_dev must have shape {(N_REGIONS, N_SITES)} "
                          f"(regions x sites), got {np.shape(true_dev)}.")
     g = np.array([true_dev[:, j] - true_dev[:, k] for j, k in PAIRS]).T
@@ -54,13 +60,14 @@ def _check(N, true_dev):
     return g                                                   # (regions, pairs)
 
 
-def min_passing_delta(N, sd_scan=.05, sd_noise=.10, true_dev=None, alpha=.05,
+def min_passing_delta(N, sd_scan=.05, sd_noise=.10, true_dev=true_dev, alpha=.05,
                       age_min=25, age_max=65, n_sims=10000, rng=None, chunk=2000):
     """For each of n_sims simulated studies, the smallest Delta at which all 15
-    tests would pass, given true site differences of true_dev * Delta."""
-    if true_dev is None:
-        true_dev = np.zeros((N_REGIONS, N_SITES))
-    g = _check(N, true_dev)
+    tests would pass, given true site differences of true_dev * Delta. The
+    default true_dev is the planning scenario set in the Parameters block; pass
+    np.zeros((5, 3)) for no true differences."""
+    g = _check(N, true_dev, age_min, age_max)
+    N = int(N)
     rng = np.random.default_rng(rng)
     tq = stats.t.ppf(1 - alpha, N - 2)
     out = []
