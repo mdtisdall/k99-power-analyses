@@ -1,6 +1,6 @@
 """Smallest equivalence margin (Delta) detectable for cross-site age effects.
 
-See README.md for the design, method, and inputs. Each of the
+See docs/equivalence-derivation.md for the derivation. Each of the
 5 regions x 3 site pairs = 15 comparisons regresses the per-subject difference
 score D on centered age; sites are "the same" only if every 90% CI lies inside
 (-Delta, +Delta). For a given N, this script reports the smallest Delta for
