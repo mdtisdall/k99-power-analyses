@@ -6,7 +6,9 @@ once, at one site. The analysis model is
     y ~ 0 + region + region:age_c + site + region:group + (1 | subject)
 
 and the test is each region's group difference (each non-reference group vs the
-reference group), Bonferroni-corrected across regions.
+reference group), Bonferroni-corrected across regions. The power calculation
+matches a Wald t test with Satterthwaite degrees of freedom, as reported by
+lmerTest (R) for this model; z-based p-values are too liberal at small df.
 
 Balanced-sites simplification: for the power calculation, every site recruits
 the same number of subjects from each group. This is the best case for a given
@@ -33,10 +35,10 @@ subjects_per_site = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]  # values to evaluate; 
 n_groups = 2                       # group 0 is the reference group
 n_regions = 10                     # number of regions
 sd_total = 1.0                     # SD of one region's value across subjects (same group, site, age)
-icc = 0.5                          # correlation between two regions of the same subject
+region_corr = 0.5                  # correlation between two regions of the same subject
 age_min, age_max = 25, 65          # age distribution: uniform(age_min, age_max)
 alpha = 0.05                       # two-sided, family-wise across the Bonferroni family
-bonferroni = True                  # False: test a single pre-specified region at alpha
+bonferroni = True                  # False: one pre-specified test (one region, one group) at alpha
 target_power = 0.80
 effect_d = 0.5                     # group difference (Cohen's d) for the power curve
 n_designs = 1000                   # random age draws to average power over
@@ -47,13 +49,36 @@ seed = 1
 
 def make_design(n_sites, subjects_per_site, n_groups, age_min, age_max, rng):
     """Site, group, and centered age for every subject. Groups are allocated
-    round-robin within each site: exactly balanced (the balanced-sites
-    simplification) when subjects_per_site is divisible by n_groups, and as
-    even as possible otherwise."""
+    round-robin across all subjects, site by site: exactly balanced at every
+    site (the balanced-sites simplification) when subjects_per_site is divisible
+    by n_groups; otherwise each site is as even as possible and the extra
+    subjects rotate between groups, so overall group sizes stay as equal as
+    possible."""
     site = np.repeat(np.arange(n_sites), subjects_per_site)
-    group = np.tile(np.arange(subjects_per_site) % n_groups, n_sites)
+    group = np.arange(site.size) % n_groups
     age = rng.uniform(age_min, age_max, site.size)
     return site, group, age - age.mean()
+
+
+def check_design(n_sites, subjects_per_site, n_groups, n_regions, region_corr,
+                 age_min, age_max):
+    """Raise a clear error for designs the model cannot be fit to."""
+    N = n_sites * subjects_per_site
+    problems = []
+    if n_sites < 1 or subjects_per_site < 1 or n_regions < 1:
+        problems.append("n_sites, subjects_per_site, and n_regions must be at least 1")
+    if n_groups < 2:
+        problems.append("n_groups must be at least 2")
+    if N - (n_groups + n_sites) < 1:
+        problems.append(f"{n_sites} sites x {subjects_per_site} subjects leaves no "
+                        f"degrees of freedom for {n_groups} groups and {n_sites} site "
+                        f"effects (need N > n_groups + n_sites)")
+    if not age_max > age_min:
+        problems.append("age_max must be greater than age_min")
+    if not 0 <= region_corr <= 1:
+        problems.append("region_corr must be between 0 and 1")
+    if problems:
+        raise ValueError("; ".join(problems))
 
 
 def dummies(codes, n):
@@ -61,11 +86,12 @@ def dummies(codes, n):
     return (codes[:, None] == np.arange(1, n)).astype(float)
 
 
-def group_se(site, group, age_c, n_sites, n_groups, n_regions, sd_total, icc):
+def group_se(site, group, age_c, n_sites, n_groups, n_regions, sd_total,
+             region_corr):
     """SE and Satterthwaite df of each region's group-k-vs-reference difference,
     for k = 1..n_groups-1. Returns arrays of length n_groups - 1."""
     N = site.size
-    tau2, sigma2 = icc * sd_total**2, (1 - icc) * sd_total**2
+    tau2, sigma2 = region_corr * sd_total**2, (1 - region_corr) * sd_total**2
     G = dummies(group, n_groups)
 
     # Between-subject stratum: subject means on intercept, age, group, site.
@@ -86,11 +112,13 @@ def group_se(site, group, age_c, n_sites, n_groups, n_regions, sd_total, icc):
 
 
 def power_curve_inputs(n_sites, subjects_per_site, n_groups, n_regions, sd_total,
-                       icc, age_min, age_max, n_designs, rng):
+                       region_corr, age_min, age_max, n_designs, rng):
     """SE and df for each contrast, for n_designs random age draws."""
+    check_design(n_sites, subjects_per_site, n_groups, n_regions, region_corr,
+                 age_min, age_max)
     out = [group_se(*make_design(n_sites, subjects_per_site, n_groups,
                                  age_min, age_max, rng),
-                    n_sites, n_groups, n_regions, sd_total, icc)
+                    n_sites, n_groups, n_regions, sd_total, region_corr)
            for _ in range(n_designs)]
     se = np.array([o[0] for o in out])          # (n_designs, n_groups - 1)
     df = np.array([o[1] for o in out])
@@ -115,14 +143,16 @@ def detectable_effect(se, df, alpha_test, target_power):
 # ---- Power curve over subjects per site -------------------------------------
 
 
-def curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, icc,
-          age_min, age_max, alpha_test, target_power, effect_d, n_designs, rng):
+def curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, region_corr,
+          age_min, age_max, alpha_test, target_power, effect_d, n_designs, seed):
     """One row per subjects-per-site value. With more than 2 groups, each row
     reports the least powerful comparison with the reference group."""
     rows = []
     for n in subjects_per_site:
+        # Seeded per value, so a row does not change when the list is edited.
+        rng = np.random.default_rng([seed, n])
         se, df = power_curve_inputs(n_sites, n, n_groups, n_regions, sd_total,
-                                    icc, age_min, age_max, n_designs, rng)
+                                    region_corr, age_min, age_max, n_designs, rng)
         k = np.argmax(se.mean(axis=0))
         rows.append(dict(
             subjects_per_site=n, N=n_sites * n, df=df[:, k].mean(),
@@ -135,12 +165,11 @@ def curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, icc,
 # ---- Run --------------------------------------------------------------------
 
 if __name__ == "__main__":
-    rng = np.random.default_rng(seed)
     n_tests = n_regions * (n_groups - 1) if bonferroni else 1
     alpha_test = alpha / n_tests
-    rows = curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, icc,
+    rows = curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, region_corr,
                  age_min, age_max, alpha_test, target_power, effect_d,
-                 n_designs, rng)
+                 n_designs, seed)
 
     summary = (f"{n_sites} sites, {n_groups} groups, {n_regions} regions; "
                f"{n_tests} tests, each two-sided at alpha = {alpha_test:.4g}")
@@ -149,7 +178,8 @@ if __name__ == "__main__":
     if unbalanced:
         print(f"Note: {unbalanced} subjects per site can't be split equally across "
               f"{n_groups} groups, so the balanced-sites simplification holds only "
-              f"approximately for those rows (marked *).")
+              f"approximately for those rows (marked *): each site is as even as "
+              f"possible, with the extra subjects rotating between groups.")
     else:
         print("Balanced-sites simplification: equal group sizes at every site")
     if n_groups > 2:

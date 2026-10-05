@@ -18,8 +18,8 @@ def plot_curves(x, xlabel, panels, title, path):
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4.2),
-                             facecolor=SURFACE)
-    for ax, p in zip(axes, panels):
+                             facecolor=SURFACE, squeeze=False)
+    for ax, p in zip(axes.ravel(), panels):
         ax.set_facecolor(SURFACE)
         ax.plot(x, p["y"], color=SERIES, lw=2, solid_joinstyle="round",
                 solid_capstyle="round", marker="o", ms=8,

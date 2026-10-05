@@ -8,8 +8,7 @@ and which parameters to set.
 
 There are $S$ sites with $n$ subjects each, so $N = Sn$ subjects in total. Each
 subject is scanned **once, at one site**, and the outcome is measured in $R$
-regions. Subjects belong to one of $K$ groups; group 0 is the reference group.
-For
+regions. Subjects belong to one of $K$ groups; group 0 is the reference group. For
 subject $i$, let $s(i)$ be its site, $G_{ik}$ the indicator that it is in group $k$
 ($k = 1, \dots, K-1$), and $x_i$ its centered age.
 
@@ -23,8 +22,9 @@ balanced, so treat the result as the best case for a given total $N$ (see
 Step 2 for what imbalance costs).
 
 When $n$ is not divisible by $K$, the script splits each site as evenly as
-possible, computes the SE exactly for that split, and prints a note that the
-simplification holds only approximately.
+possible, rotates the extra subjects between groups from site to site (so overall
+group sizes stay as equal as possible), computes the SE exactly for that design,
+and prints a note that the simplification holds only approximately.
 
 ### Analysis model
 
@@ -48,8 +48,15 @@ effects** $\gamma_{rk}$: the difference between group $k$ and the reference grou
 in region $r$. The test of interest is $H_0: \gamma_{rk} = 0$ for each region and
 each non-reference group, Bonferroni-corrected across the $m = R(K-1)$ tests.
 
-The script's two noise parameters are `sd_total` $= \mathrm{SD}$ and `icc` $= \rho$,
-where
+The power calculation matches a Wald t test with Satterthwaite degrees of freedom,
+which is what lmerTest (R) reports for this model. Software that reports z-based
+p-values (e.g. statsmodels `MixedLM`) is too liberal when the degrees of freedom
+are small: at a nominal $\alpha = 0.005$, its true false-positive rate is 0.012
+with 18 df and 0.007 with 56 df. With one region ($R = 1$) there is no random
+effect to fit; use ordinary regression, for which the same formulas hold.
+
+The script's two noise parameters are `sd_total` $= \mathrm{SD}$ and
+`region_corr` $= \rho$, where
 
 $$
 \mathrm{SD}^2 = \tau^2 + \sigma^2,
@@ -67,7 +74,7 @@ correlation. Both can be estimated by fitting this model to prior data:
 $\mathrm{SD} = \sqrt{\hat\tau^2 + \hat\sigma^2}$ and
 $\rho = \hat\tau^2 / (\hat\tau^2 + \hat\sigma^2)$.
 
-## Step 1: The covariance splits into two strata
+## Step 1: The data split into subject means and regional deviations
 
 For subject $i$, collect the $R$ regional values into $\mathbf y_i$. Its covariance
 is compound symmetric:
@@ -98,27 +105,28 @@ d_{ir} = (\alpha_r - \bar\alpha) + (\beta_r - \bar\beta) x_i + \sum_k (\gamma_{r
 $$
 
 The site effects $\eta_s$ and the subject effects $u_i$ appear only in the subject
-means. The errors of the two strata are uncorrelated (and, under normality,
+means. The errors of the two parts are uncorrelated (and, under normality,
 independent), and the fixed effects split into two disjoint sets:
-$(\bar\alpha, \bar\beta, \bar\gamma_k, \eta_s)$ for the means and the
-region deviations $(\alpha_r - \bar\alpha, \beta_r - \bar\beta, \gamma_{rk} - \bar\gamma_k)$
-for the deviations. GLS therefore separates into one fit per stratum. Within each
-stratum the errors are homoscedastic, so GLS reduces to OLS:
+$(\bar\alpha, \bar\beta, \bar\gamma_k, \eta_s)$ for the means and the regional
+deviations $(\alpha_r - \bar\alpha, \beta_r - \bar\beta, \gamma_{rk} - \bar\gamma_k)$
+for the deviations. The generalized least-squares (GLS) fit of the mixed model
+therefore separates into one fit for each part, and each reduces to ordinary least
+squares (OLS):
 
-- **Between subjects.** OLS of $\bar y_i$ on
-  $Z_b = [\mathbf 1, x, G, \text{site indicators}]$, with error variance
-  $\tau^2 + \sigma^2/R$ and $\mathrm{df}_b = N - (K + S)$ residual degrees of
-  freedom.
-- **Within subjects.** OLS of $d_{ir}$ on $Z_w = [\mathbf 1, x, G]$ for each
-  region. Every region has the same regressors, so the joint GLS equals the
-  per-region OLS fits (Zellner, 1962). Each fit has error variance
-  $\sigma^2 (1 - 1/R)$, and the stratum has $\mathrm{df}_w = (R - 1)(N - K - 1)$
-  residual degrees of freedom.
+- **Subject means.** OLS of $\bar y_i$ on
+  $Z_b = [\mathbf 1, x, G, \text{site indicators}]$. There is one value per subject,
+  with independent errors of variance $\tau^2 + \sigma^2/R$, so GLS is OLS. This fit
+  has $\mathrm{df}_b = N - (K + S)$ residual degrees of freedom.
+- **Regional deviations.** OLS of $d_{ir}$ on $Z_w = [\mathbf 1, x, G]$ for each
+  region. The deviations of one subject are correlated with each other, but every
+  region has the same regressors, so the joint GLS fit equals the separate OLS fits
+  (Zellner, 1962). Each fit has error variance $\sigma^2 (1 - 1/R)$, and together
+  they have $\mathrm{df}_w = (R - 1)(N - K - 1)$ residual degrees of freedom.
 
 ## Step 2: The standard error of a group-by-region effect
 
 Because $\gamma_{rk} = \bar\gamma_k + (\gamma_{rk} - \bar\gamma_k)$, the estimate
-combines one piece from each stratum, and the two pieces are independent:
+combines one piece from each part, and the two pieces are independent:
 
 $$
 \mathrm{Var}(\hat\gamma_{rk}) = v_b + v_w,
@@ -134,12 +142,12 @@ the group sizes, how groups are spread across sites, and the ages. The script
 computes them exactly.
 
 This closed form is exactly the GLS variance from the full mixed model with known
-variance components. It was checked against the brute-force
-$(\sum_i X_i^\top V^{-1} X_i)^{-1}$ to machine precision for several designs,
-including 3 unequal groups and a single region.
+variance components. It matches the brute-force $(\sum_i X_i^\top V^{-1} X_i)^{-1}$
+to machine precision, including for unbalanced designs, 3 unequal groups, and a
+single region ([checks](#numerical-checks)).
 
 **What the balanced-sites simplification buys.** Under the simplification, group
-is orthogonal to site, so the site indicators remove no group information. If age
+is unrelated to site, so adjusting for site removes no group information. If age
 is also unrelated to group, $c_b \approx c_w = c$ and
 
 $$
@@ -147,42 +155,45 @@ $$
 $$
 
 With $K$ groups of $N/K$ subjects, $c \approx 2K/N$. For two groups that is $4/N$,
-so $\mathrm{SE} \approx 2\thinspace\mathrm{SD}/\sqrt N$.
-That is the same as a two-sample t test on that one region: the correlation between
-regions, the number of regions, and the site effects hardly matter. The random
-subject effect does not reduce the error of a group difference because group varies
-only between subjects, so each region's group comparison is subject to that region's
-full between-subject variability. Without the simplification, the correlation $\rho$ starts to
-matter: when groups are unbalanced within sites, the site adjustment costs
-information ($c_b > c_w$), and higher $\rho$ puts more weight on $c_b$. The cost
-is usually modest. For example, with $N = 60$ and $\rho = 0.5$, 20 sites of 3
-subjects split alternately 2:1 and 1:2 (30 per group overall) raise the detectable
-effect by about 3% compared with a design balanced within sites. Splitting every
-site 2:1, which also unbalances the overall group sizes, raises it by about 5%. It would also matter for
-a different question, whether the group difference *varies across regions*, which
-uses only the within-subject stratum and its smaller variance $\sigma^2$.
+so $\mathrm{SE} \approx 2\thinspace\mathrm{SD}/\sqrt N$, the same as a two-sample t
+test on that one region. For a fixed total $N$, the number of sites, the number of
+regions (apart from the Bonferroni correction), and $\rho$ hardly matter. Group
+differs only between subjects, so the random subject effect cannot remove
+subject-to-subject noise from a group comparison.
+
+**What imbalance costs.** When groups are unbalanced within sites, adjusting for
+site costs information ($c_b > c_w$), and a higher $\rho$ puts more weight on
+$c_b$. For example, with 20 sites of 3 subjects, split alternately 2:1 and 1:2 (30
+per group overall), the SE is larger than the ideal $2\thinspace\mathrm{SD}/\sqrt N$
+by about 2%, 4.5%, and 7% for $\rho = 0.1$, $0.5$, and $0.9$. The detectable effect
+grows by the same proportion. A correlation between regions would also matter for a
+different question, whether the group difference *varies across regions*, which
+uses only the regional deviations and their smaller variance $\sigma^2$.
 
 ## Step 3: The test and its degrees of freedom
 
 Each effect is tested with the Wald statistic
 $T = \hat\gamma_{rk} / \widehat{\mathrm{SE}}$, two-sided at level $\alpha / m$
 (Bonferroni). $\widehat{\mathrm{SE}}^2$ combines variance estimates from both
-strata, so its degrees of freedom follow from the Satterthwaite approximation:
+parts, so its degrees of freedom come from the Satterthwaite approximation:
 
 $$
 \mathrm{df} = \frac{(v_b + v_w)^2}{v_b^2 / \mathrm{df}_b + v_w^2 / \mathrm{df}_w}.
 $$
 
-When the true effect is $\gamma$, $T$ is approximately noncentral t with these df
-and noncentrality $\gamma / \mathrm{SE}$, so
+This equals the Satterthwaite df that lmerTest computes at the true variance
+components. When the true effect is $\gamma$, $T$ is approximately noncentral t
+with these df and noncentrality $\gamma / \mathrm{SE}$, so
 
 $$
 \text{power}(\gamma) = P\big(T > t_c\big) + P\big(T < -t_c\big),
 \qquad t_c = t_{1 - \alpha/(2m),\thinspace \mathrm{df}} .
 $$
 
-With the default design ($N = 200$), $\mathrm{df} \approx 550$, so this is
-essentially a z test. The df matter only for small designs.
+This is an approximation even for normal data, because the Satterthwaite df are
+(it is exact only when $R = 1$ or $\rho = 1$). With the default design
+($N = 200$), $\mathrm{df} \approx 550$, so it is essentially a z test; the df matter
+only for small designs.
 
 ## Step 4: The smallest detectable effect
 
@@ -209,43 +220,70 @@ $\gamma = d \cdot \mathrm{SD}$ (the parameter `effect_d`) and $\gamma^\ast$. Und
 the balanced-sites simplification with two groups,
 $\mathrm{SE} \approx 2\thinspace\mathrm{SD}/\sqrt{Sn}$, so the detectable effect
 falls roughly as $1/\sqrt n$: doubling the subjects per site shrinks it by about
-30%. At very small $n$ it falls faster than that, because the degrees of freedom
-are small and the t critical value is larger.
+30%. At very small $n$ it falls faster, because the degrees of freedom are small
+and the t critical value is larger.
 
-## Verification by simulation
+## What the power refers to
 
-The derivation was also checked against real mixed-model fits (statsmodels
-`MixedLM`, REML). Data were simulated from the model with the defaults, with region
-means, age slopes, and random site offsets added and an effect of $d = 0.519$ in one
-region only. The fitted model above was then tested at $\alpha = 0.005$. In 1500 simulated
-studies:
+`target_power` is the power of **one region's test**: the chance of detecting a
+group difference of the given size in a particular region. If several regions have
+true effects, the chance of detecting at least one of them is higher.
+
+Bonferroni treats the $m$ tests as unrelated, but under the balanced-sites
+simplification the region estimates are correlated, with correlation $\rho$. So
+Bonferroni is conservative: with 10 regions its family-wise false-positive rate is
+0.047, 0.039, and 0.023 for $\rho = 0.2$, $0.5$, and $0.8$, rather than 0.05. A
+max-T correction (the critical value of the largest of the $m$ correlated
+statistics, e.g. from `multcomp` in R) uses the correlation and would reduce the
+detectable effect by about 0.5%, 2.5%, and 8% for those values of $\rho$. The script
+uses Bonferroni, which is simpler and slightly conservative.
+
+## Numerical checks
+
+[`checks/check_group_effect.py`](../checks/check_group_effect.py) verifies the
+closed-form SE against brute-force GLS for several designs and checks power against
+real mixed-model fits (statsmodels `MixedLM`, REML). Data were simulated from the
+model with the defaults, with region means, age slopes, and random site offsets
+added and an effect of $d = 0.519$ in one region only, then tested at
+$\alpha = 0.005$ using `MixedLM`'s z-based p-values (with about 550 df, z and t are
+practically the same here). In 1500 simulated studies:
 
 | Region | Rejection rate | Expected |
 |---|---|---|
 | with the effect (power) | 0.808 | 0.80 (Monte Carlo SE 0.010) |
-| without an effect (type I error) | 0.0067 | 0.005 (Monte Carlo SE 0.0018) |
+| without an effect (false positives) | 0.0067 | 0.005 (Monte Carlo SE 0.0018) |
 
-Both agree with the closed-form calculation within Monte Carlo error.
+Both agree with the closed-form calculation within Monte Carlo error. An
+independent check at $N = 40$, where the df matter more, gave power 0.796
+(Monte Carlo SE 0.015) with t-based critical values.
 
 ## Assumptions
 
 - **One scan per subject, complete data.** Every subject has all $R$ regions.
-  Step 1 relies on this. With missing regions the strata no longer separate, and
+  Step 1 relies on this. With missing regions the two parts no longer separate, and
   power would need to be simulated with full mixed-model fits.
-- **Compound-symmetric covariance.** All regions have the same SD, and every pair of
-  regions has the same correlation. If some regions are noisier, the detectable
-  effect for region $r$ scales with that region's SD. Run the script with each
-  region's SD to see the range.
-- **Additive site effects.** A site shifts all regions equally, as in the model.
-  Region-specific scanner effects are not modeled. Under the balanced-sites
-  simplification, they cancel from the group comparison.
+- **Equal SD and correlation across regions.** If some regions are noisier, the
+  model with one residual variance is misspecified, and its tests are too liberal
+  for the noisy regions and too conservative for the others. Changing `sd_total`
+  does not show this: it only rescales the answer in outcome units, and $d$ is
+  already relative to the SD. To handle unequal SDs, fit region-specific residual
+  variances (e.g. `nlme::lme` with `weights = varIdent(form = ~ 1 | region)`) or
+  analyze each region separately. The detectable $d$ then applies to each region
+  relative to its own SD.
+- **Site effects shift all regions equally.** If scanners affect regions
+  differently (site-by-region effects), the model above leaves those effects in
+  the residual. Under the balanced-sites simplification the group estimate stays
+  unbiased, but the estimated residual variance is inflated, so the SE is larger
+  and power is lower than calculated (e.g. an SE of 0.147 instead of 0.142 SD when
+  site-by-region effects have an SD of 0.3). Adding `site:region` to the model
+  removes this cost.
 - **Balanced-sites simplification.** Every site recruits equally from each group
   (see [above](#balanced-sites-simplification)). This gives the smallest detectable
   effect for a given total $N$. Imbalance within sites makes it larger.
 - **Comparable ages.** Age has the same distribution in every group. Groups that
   differ in age lose some information to the age adjustment.
-- **Normal errors.** Needed for the t-based power calculation to be exact. Otherwise
-  it is approximate, which is usually fine at these sample sizes.
+- **Independent subjects.** Apart from the fixed site effects, subjects at the same
+  site are independent.
 
 ## References
 
