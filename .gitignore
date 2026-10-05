@@ -1,7 +1,11 @@
-/equivalence_curve.csv
+/harmonization_curve.csv
 __pycache__/
 .venv/
 .DS_Store
 /group_effect_curve.csv
 /group_effect_curve.png
-/equivalence_curve.png
+/harmonization_curve.png
+
+# Journal papers kept locally for reference
+*.pdf
+*.docx
