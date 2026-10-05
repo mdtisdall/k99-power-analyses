@@ -43,7 +43,8 @@ Power analysis for showing that **region-specific age effects are equivalent acr
 
 ## Variables you need to supply
 
-Set these in the **Parameters** block at the top of [`power.R`](power.R). All the
+Set these in the **Parameters** block at the top of [`power.R`](power.R) or
+[`power.py`](power.py); both use the same names. All the
 current values are **placeholders**. Replace them with estimates from prior data,
 ideally traveling-subject or test-retest scans.
 
@@ -52,7 +53,7 @@ ideally traveling-subject or test-retest scans.
 | `Delta` | Equivalence margin Δ, in outcome units per year. **The most consequential choice.** | Justify before seeing the data, e.g. ±20% of the expected age slope. Decide whether it applies to the raw, harmonized, or log scale (see Caveats). |
 | `s_ss` | σ_subj:site: SD of the scan-level global offset, shared across all regions within one scan. | Prior multi-site / test-retest data. |
 | `sigma` | Length-3 vector: region-level measurement-noise SD at each site/scanner. | Prior data, per scanner. Alternatively, estimate the SD of between-site difference scores per region and pair directly. |
-| `age_min`, `age_max` | Age distribution. The sim draws ages from uniform(`age_min`, `age_max`). Only Var(age) matters. | Expected recruitment range. If your age distribution isn't uniform, edit the `runif` line in `sim_once`. |
+| `age_min`, `age_max` | Age distribution. The sim draws ages from uniform(`age_min`, `age_max`). Only Var(age) matters. | Expected recruitment range. If your age distribution isn't uniform, edit the `runif` line in `sim_once` (R) or the `rng.uniform` line in `power()` (Python). |
 | `N_grid` | Candidate sample sizes to evaluate. | Feasible enrollment range. |
 | `dslope` | Optional 5 × 3 matrix (regions × sites) of true site slope deviations from a common slope. Base case: all 0. | Set small non-zero values to get power when the sites truly differ slightly. |
 | `alpha` | One-sided level of each TOST (0.05 gives a 90% CI). | Usually leave at 0.05. |
@@ -64,26 +65,50 @@ offsets, because they all cancel (see Method item 4).
 
 ## Running
 
-`power.R` uses only base R (`stats`). With Nix:
+There are two equivalent implementations. Pick whichever you prefer.
+
+| | R: [`power.R`](power.R) | Python: [`power.py`](power.py) |
+|---|---|---|
+| Dependencies | base R only | numpy, scipy |
+| How it fits | `lm()` per comparison, per simulation | closed-form OLS slope/SE, all simulations vectorized |
+| Default run (10 N × 2000 sims) | ~15 s | ~1–2 s |
+| Output | `power_curve.csv` | `power_curve_py.csv` |
+
+Both print the power curve (`N`, `power` = P(all 15 TOSTs pass)) and write it to a
+CSV, which is git-ignored. They agree to within Monte Carlo error.
+
+With Nix, `shell.nix` provides both R and Python:
 
 ```bash
 nix-shell --run "Rscript power.R"
 ```
 
-Or with any local R installation:
+```bash
+nix-shell --run "python power.py"
+```
+
+Or without Nix, using a local R installation, or a Python environment with numpy
+and scipy (`pip install numpy scipy`):
 
 ```bash
 Rscript power.R
 ```
 
-The script prints the power curve (`N`, `power` = P(all 15 TOSTs pass)) and writes
-it to `power_curve.csv`, which is git-ignored. With the defaults (10 N values ×
-2000 sims) it takes about 15 s.
+```bash
+python power.py
+```
 
-To get power at a single N interactively, source the file and call `sim_once`:
+To get power at a single N interactively:
 
 ```r
+# R: source the functions, then
 mean(replicate(2000, sim_once(N = 60, Delta = 0.003)))
+```
+
+```python
+# Python
+from power import power
+power(N=60, Delta=0.003, n_sims=2000, rng=1)
 ```
 
 ## Caveats
