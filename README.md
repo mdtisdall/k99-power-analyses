@@ -139,13 +139,46 @@ detectable** at the target power.
 | `alpha` | 0.05 | Family-wise two-sided level, split across the tests by Bonferroni. |
 | `bonferroni` | `True` | Set to `False` to test a single pre-specified region at `alpha`. |
 | `target_power` | 0.80 | Required power for each region's test. |
-| `effect_d` | 0.5 | Group difference, as Cohen's d, at which the power curve is computed. |
+| `effect_d` | 0.5 | Group difference, as Cohen's d, at which the power curve is computed. To get it from a previous study, see [below](#converting-a-previous-effect-estimate-to-d). |
 | `n_designs` | 1000 | Random age draws averaged over. |
 | `seed` | 1 | Random seed, so results are reproducible. |
 
 To estimate `sd_total` and `icc` from prior data, fit the same model and take
 `sd_total` = √(τ² + σ²) and `icc` = τ² / (τ² + σ²), where τ² is the subject variance
 and σ² the residual variance.
+
+### Converting a previous effect estimate to d
+
+The script's Cohen's d is **the group difference in one region divided by
+`sd_total`**: the between-subject SD of that region *within a group, after
+adjusting for age and site*. To use an effect from a pilot study or the
+literature, convert it to this d (then set `effect_d`, or compare it with the
+detectable d), using whichever of these the source reports:
+
+| The source reports | d = | Notes |
+|---|---|---|
+| Group means and an SD | (mean₁ − mean₀) / SD | Use the pooled within-group SD. If that SD is not adjusted for age, d comes out **smaller** than the script's d (conservative). |
+| A group difference from a regression or mixed model with covariates | difference / residual SD | For a mixed model like the one above, the SD is √(τ² + σ²), the square root of the subject variance plus the residual variance. This matches the script's definition. |
+| A two-sample t statistic, or the t for the group term in a regression | t × √(1/n₀ + 1/n₁) | n₀ and n₁ are the group sizes in that study. Exact. A covariate-adjusted t gives a covariate-adjusted d, which is what the script uses. |
+| A difference with a 95% CI (lower, upper) | t = difference / SE, with SE = (upper − lower) / 3.92; then use the row above | |
+| Partial η² for the group effect (2 groups) | t = √(df × η² / (1 − η²)); then use the t row | df is the error df. The shortcut 2√(η² / (1 − η²)) is close for large samples. |
+| A point-biserial correlation r between group and outcome | t = r √(df / (1 − r²)); then use the t row | The shortcut 2r / √(1 − r²) is close for large, equal groups. |
+| Hedges' g | ≈ d | g is d with a small-sample correction. |
+| An effect in outcome units, with `sd_total` known for your study | effect / `sd_total` | |
+
+Cautions:
+
+- **Use a between-subject d.** A d from a paired or within-subject design (d_z,
+  standardized by the SD of differences) is not comparable.
+- **Use the same region and outcome definition.** A d from whole-brain or a
+  different parcellation can differ a lot from one region's d.
+- **Published effects are usually inflated** by publication bias and the winner's
+  curse, especially from small studies. Consider planning for a smaller effect,
+  e.g. the lower end of its confidence interval.
+- **Different SDs give different d's.** d is unit-free, so it transfers across
+  scanners better than raw units. But a d computed with a larger SD (unadjusted
+  for age, or pooling across sites without site adjustment) understates the
+  script's d, and one computed with a smaller SD overstates it.
 
 ### Output
 
