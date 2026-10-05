@@ -1,6 +1,6 @@
 """Power for cross-site equivalence of region-specific age effects.
 
-Python port of power.R; see README.md for the design and method. Each of the
+See README.md for the design, method, and inputs. Each of the
 5 regions x 3 site pairs = 15 comparisons regresses the per-subject difference
 score D on centered age; sites are "the same" only if every 90% CI lies inside
 (-Delta, +Delta). Power = P(all 15 pass).
@@ -65,5 +65,5 @@ if __name__ == "__main__":
     print("   N  power")
     for N, p in rows:
         print(f"{N:4d}  {p:.4f}")
-    np.savetxt("power_curve_py.csv", rows, delimiter=",", header="N,power",
+    np.savetxt("power_curve.csv", rows, delimiter=",", header="N,power",
                comments="", fmt=["%d", "%.4f"])

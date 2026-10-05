@@ -1,5 +1,4 @@
 power_curve.csv
-.Rhistory
-.RData
+__pycache__/
+.venv/
 .DS_Store
-power_curve_py.csv

@@ -1,141 +1,77 @@
 # k99-power-analyses
 
-Power analysis for showing that **region-specific age effects are equivalent across
-3 MRI sites**, when the original single-site model is fit at each site separately.
+Estimates the sample size needed to show that **age effects in 5 brain regions are
+the same across 3 MRI sites**, when every subject is scanned at all 3 sites.
 
-## Design
+## Quick start
 
-- N subjects, each scanned at all 3 sites; no drop-out, no missing regions.
-- Outcome measured in 5 brain regions per scan.
-- Single-site analysis model (fit separately at each site), with `age_c` = centered age:
+1. Install the two dependencies (numpy and scipy). Any Python 3, including the one
+   built into macOS, works:
 
-  ```r
-  y ~ 0 + region + region:age_c + (1 | subject)
-  ```
-
-## Method
-
-1. **"The same" is an equivalence claim.** Use TOST against a pre-specified margin Δ
-   (outcome units per year). A non-significant site×age interaction does not show
-   sameness.
-2. **Difference-score regression.** With complete, balanced data (every subject has all
-   5 regions and the same age at every site), the mixed model's region slopes equal
-   per-region OLS slopes (GLS = OLS). So the difference between two sites' slopes for
-   region *r* equals the slope from regressing the per-subject difference score
-   `D_i = y[i, r, j] - y[i, r, k]` on `age_c`. That regression's SE is exact and
-   accounts for the same subjects being scanned at both sites. Comparing SEs from the
-   separate fits would ignore that pairing.
-3. **Decision rule.** For each of 5 regions × 3 site pairs = 15 comparisons, the 90% CI
-   (t, df = N − 2) of the D-on-age slope must lie inside (−Δ, +Δ). Sites are "the same"
-   only if all 15 pass. This is an intersection-union test, so no α adjustment is
-   needed, but **power = P(all 15 pass)**.
-4. **What cancels.** Between-subject variance (τ²), stable subject-specific regional
-   variance, region intercepts, true age slopes, and constant site offsets all drop out
-   of the differences. Power depends only on scan-level variability, Δ, N, and
-   Var(age). With equal noise at all sites:
-
-   ```
-   Var(slope diff) ≈ 2(σ²_subj:site + σ²) / (N · Var(age))
+   ```bash
+   python3 -m pip install -r requirements.txt
    ```
 
-   Use this as a sanity check. Each test needs roughly |true diff| + t₀.₉₅ · SE < Δ,
-   and all 15 must pass.
+2. Open [`power.py`](power.py) and edit the **Parameters** block at the top (see
+   below).
 
-## Variables you need to supply
+3. Run it:
 
-Set these in the **Parameters** block at the top of [`power.R`](power.R) or
-[`power.py`](power.py); both use the same names. All the
-current values are **placeholders**. Replace them with estimates from prior data,
-ideally traveling-subject or test-retest scans.
+   ```bash
+   python3 power.py
+   ```
 
-| Variable | Meaning | Where it comes from |
-|---|---|---|
-| `Delta` | Equivalence margin Δ, in outcome units per year. **The most consequential choice.** | Justify before seeing the data, e.g. ±20% of the expected age slope. Decide whether it applies to the raw, harmonized, or log scale (see Caveats). |
-| `s_ss` | σ_subj:site: SD of the scan-level global offset, shared across all regions within one scan. | Prior multi-site / test-retest data. |
-| `sigma` | Length-3 vector: region-level measurement-noise SD at each site/scanner. | Prior data, per scanner. Alternatively, estimate the SD of between-site difference scores per region and pair directly. |
-| `age_min`, `age_max` | Age distribution. The sim draws ages from uniform(`age_min`, `age_max`). Only Var(age) matters. | Expected recruitment range. If your age distribution isn't uniform, edit the `runif` line in `sim_once` (R) or the `rng.uniform` line in `power()` (Python). |
-| `N_grid` | Candidate sample sizes to evaluate. | Feasible enrollment range. |
-| `dslope` | Optional 5 × 3 matrix (regions × sites) of true site slope deviations from a common slope. Base case: all 0. | Set small non-zero values to get power when the sites truly differ slightly. |
-| `alpha` | One-sided level of each TOST (0.05 gives a 90% CI). | Usually leave at 0.05. |
-| `n_sims` | Monte Carlo replicates per N. | 2000 gives an MC SE of ≤ ~0.011 on power. |
-| `seed` | RNG seed, for reproducibility. | |
+   It prints power for each sample size and saves the same table to
+   `power_curve.csv`. A run takes a few seconds.
 
-You do **not** need τ², region intercepts, the true age slopes, or constant site
-offsets, because they all cancel (see Method item 4).
+   On Windows, type `python` instead of `python3`.
 
-## Running
+(With Nix, `nix-shell --run "python3 power.py"` does steps 1 and 3 together.)
 
-There are two equivalent implementations. Pick whichever you prefer.
+## Parameters to set
 
-| | R: [`power.R`](power.R) | Python: [`power.py`](power.py) |
-|---|---|---|
-| Dependencies | base R only | numpy, scipy |
-| How it fits | `lm()` per comparison, per simulation | closed-form OLS slope/SE, all simulations vectorized |
-| Default run (10 N × 2000 sims) | ~15 s | ~1–2 s |
-| Output | `power_curve.csv` | `power_curve_py.csv` |
+The values in `power.py` are **placeholders**. Replace them with estimates from
+prior data, ideally traveling-subject or test-retest scans.
 
-Both print the power curve (`N`, `power` = P(all 15 TOSTs pass)) and write it to a
-CSV, which is git-ignored. They agree to within Monte Carlo error.
+| Parameter | What it is |
+|---|---|
+| `Delta` | **Equivalence margin**: the largest between-site difference in age slope (outcome units per year) that still counts as "the same". This is the most important choice. Set it before seeing the data, e.g. ±20% of the expected age slope. |
+| `s_ss` | SD of a whole-scan offset: how much a subject's values shift together, across all regions, from one scan to another. |
+| `sigma` | Measurement-noise SD for one region in one scan, one value per site: `[site1, site2, site3]`. |
+| `age_min`, `age_max` | Age range of the sample. Ages are drawn uniformly from this range. |
+| `N_grid` | Sample sizes to try. |
+| `dslope` | Optional true differences in age slope between sites (5 regions × 3 sites). Leave at 0 for the standard calculation. |
+| `alpha` | Test level. Leave at 0.05. |
+| `n_sims` | Simulations per sample size. 2000 is enough for ±0.01 accuracy. |
+| `seed` | Random seed, so results are reproducible. |
 
-With Nix, `shell.nix` provides both R and Python:
+You don't need between-subject variance, regional means, the true age slopes, or
+fixed site offsets, because they cancel out (see below).
 
-```bash
-nix-shell --run "Rscript power.R"
+## What it calculates
+
+Each site's data are analyzed separately with the model
+
+```
+y ~ 0 + region + region:age_c + (1 | subject)
 ```
 
-```bash
-nix-shell --run "python power.py"
-```
+To show that the age effects are the *same*, the script uses equivalence tests
+(TOST) rather than a non-significant site × age interaction, which can't show
+sameness. For each region (5) and each pair of sites (3), it regresses the
+per-subject difference between the two sites on age. That slope is exactly the
+difference between the two sites' age effects. The 90% CI for that slope must fall
+inside (−Δ, +Δ). The sites count as "the same" only if **all 15** comparisons pass,
+and **power is the probability that all 15 pass**.
 
-Or without Nix, using a local R installation, or a Python environment with numpy
-and scipy (`pip install numpy scipy`):
+Because each comparison uses differences within the same subject, anything stable
+within a subject cancels. Power depends only on scan-to-scan noise (`s_ss`,
+`sigma`), Δ, N, and the spread of ages.
 
-```bash
-Rscript power.R
-```
+## Assumptions
 
-```bash
-python power.py
-```
-
-To get power at a single N interactively:
-
-```r
-# R: source the functions, then
-mean(replicate(2000, sim_once(N = 60, Delta = 0.003)))
-```
-
-```python
-# Python
-from power import power
-power(N=60, Delta=0.003, n_sims=2000, rng=1)
-```
-
-## Caveats
-
-- **Missing data.** If any data are missing, GLS = OLS no longer holds and the
-  difference-score shortcut is no longer exact. Use a joint model instead, e.g.
-
-  ```r
-  y ~ 0 + region:site + region:site:age_c +
-      (1 | subject) + (1 | subject:region) + (1 | subject:site)
-  ```
-
-  and get the slope-difference contrasts from `vcov()`. Alternatively, use a
-  subject-level bootstrap that refits all three sites on the same resampled subjects.
-  This needs `lme4` (and optionally `simr`). Under Nix, use `rWrapper` so the packages
-  are visible to `Rscript`:
-
-  ```bash
-  nix-shell -p 'rWrapper.override { packages = with rPackages; [ lme4 simr ]; }' --run "Rscript your_script.R"
-  ```
-
-  On macOS (as of nixpkgs with R 4.4.2), `simr` fails to build because its
-  `SparseM` dependency fails to compile with gfortran. `lme4` alone builds and loads fine:
-
-  ```bash
-  nix-shell -p 'rWrapper.override { packages = with rPackages; [ lme4 ]; }' --run "Rscript your_script.R"
-  ```
-
-- **Multiplicative scanner bias** scales slopes proportionally. Decide in advance
-  whether Δ applies to the raw, harmonized, or log-transformed outcome.
+- **Complete data**: every subject has all 5 regions at all 3 sites. If data will be
+  missing, this shortcut isn't exact, and you would need a joint mixed model across
+  sites instead.
+- **Scale of Δ**: scanner differences that multiply values also scale the slopes.
+  Decide in advance whether Δ applies to raw, harmonized, or log-transformed values.
