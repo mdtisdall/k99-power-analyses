@@ -18,7 +18,7 @@ from scipy import stats
 N_grid = [5]                       # number of subjects (each scanned at all 3 sites)
 target_power = 0.80                # required P(all 15 TOSTs pass)
 s_ss = 0.05                        # SD of subject:site offset (shared across regions in a scan)
-sigma = np.array([.10, .10, .10])  # region-level measurement-noise SD at each site
+sigma = 0.10                       # region-level measurement-noise SD (all sites and regions)
 age_min, age_max = 50, 80          # age distribution: uniform(age_min, age_max)
 dslope = np.zeros((5, 3))          # true slope deviation, regions (rows) x sites (cols)
 alpha = 0.05                       # one-sided level for each TOST (gives a 90% CI)
@@ -30,18 +30,18 @@ PAIRS = [(0, 1), (0, 2), (1, 2)]
 # ---- Simulation -------------------------------------------------------------
 
 
-def min_passing_delta(N, s_ss=.05, sigma=(.10, .10, .10), dslope=np.zeros((5, 3)),
+def min_passing_delta(N, s_ss=.05, sigma=.10, dslope=np.zeros((5, 3)),
                       alpha=.05, age_min=50, age_max=80, n_sims=10000, rng=None):
     """For each of n_sims simulated studies, the smallest Delta at which all 15
     TOSTs would pass: max over comparisons of |slope diff| + t * SE."""
     rng = np.random.default_rng(rng)
-    sigma, dslope = np.asarray(sigma), np.asarray(dslope)
+    dslope = np.asarray(dslope)
 
     # Simulate only the terms that do not cancel in between-site differences.
     age = rng.uniform(age_min, age_max, (n_sims, N))
     age_c = age - age.mean(axis=1, keepdims=True)
     e = (rng.normal(0, s_ss, (n_sims, N, 1, 3))                 # subject:site offset
-         + rng.normal(0, 1, (n_sims, N, 5, 3)) * sigma          # measurement noise
+         + rng.normal(0, sigma, (n_sims, N, 5, 3))              # measurement noise
          + age_c[:, :, None, None] * dslope)                    # true site slope deviation
 
     D = np.stack([e[..., j] - e[..., k] for j, k in PAIRS], axis=-1)  # (sims, N, 5, 3)
