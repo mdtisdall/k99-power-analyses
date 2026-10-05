@@ -1,4 +1,4 @@
 { pkgs ? import <nixpkgs> { } }:
 pkgs.mkShell {
-  packages = [ (pkgs.python3.withPackages (ps: [ ps.numpy ps.scipy ])) ];
+  packages = [ (pkgs.python3.withPackages (ps: [ ps.numpy ps.scipy ps.matplotlib ])) ];
 }

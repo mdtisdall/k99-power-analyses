@@ -11,7 +11,7 @@ Two power analyses for multi-site MRI studies:
 
 ## Quick start
 
-1. Install the two dependencies (numpy and scipy). Any Python 3, including the one
+1. Install the dependencies (numpy, scipy, and matplotlib for plots). Any Python 3, including the one
    built into macOS, works:
 
    ```bash
@@ -113,23 +113,24 @@ y ~ 0 + region + region:age_c + site + region:group + (1 | subject)
 The group-by-region effect is the difference between a group and the reference
 group in one region. Each region's effect is tested separately, Bonferroni-corrected
 across regions (and across groups, if there are more than 2).
-[`group_effect.py`](group_effect.py) reports the **smallest group difference
+For each number of subjects per site, [`group_effect.py`](group_effect.py) reports
+the **power** to detect a given group difference and the **smallest group difference
 detectable** at the target power.
 
 > **Balanced-sites simplification.** For the power calculation, every site is
 > assumed to recruit the same number of subjects from each group. This is a
 > planning simplification, not a requirement of the analysis. It gives the best
 > case for a given total N. Groups that are unbalanced within sites need a somewhat
-> larger effect to reach the same power, typically a few percent larger. Keep `subjects_per_site` divisible by
-> `n_groups`; otherwise the script warns that the simplification holds only
-> approximately.
+> larger effect to reach the same power, typically a few percent larger. Use values
+> of `subjects_per_site` divisible by `n_groups`; otherwise the script marks those
+> rows and warns that the simplification holds only approximately.
 
 ### Parameters
 
 | Parameter | Default | What it is |
 |---|---|---|
 | `n_sites` | 20 | Number of sites. |
-| `subjects_per_site` | 10 | Subjects at each site, split equally across groups (balanced-sites simplification). |
+| `subjects_per_site` | 2, 4, …, 20 | List of subjects-per-site values to evaluate (the x-axis of the power curve). Each is split equally across groups (balanced-sites simplification). |
 | `n_groups` | 2 | Number of groups. Group 0 is the reference; each other group is compared with it. |
 | `n_regions` | 10 | Number of regions (and of Bonferroni-corrected tests, with 2 groups). |
 | `sd_total` | 1.0 | SD of one region's value across subjects with the same group, site, and age. Only scales the answer in outcome units; leave at 1 to get the answer in SD units. |
@@ -138,6 +139,7 @@ detectable** at the target power.
 | `alpha` | 0.05 | Family-wise two-sided level, split across the tests by Bonferroni. |
 | `bonferroni` | `True` | Set to `False` to test a single pre-specified region at `alpha`. |
 | `target_power` | 0.80 | Required power for each region's test. |
+| `effect_d` | 0.5 | Group difference, as Cohen's d, at which the power curve is computed. |
 | `n_designs` | 1000 | Random age draws averaged over. |
 | `seed` | 1 | Random seed, so results are reproducible. |
 
@@ -147,10 +149,28 @@ and σ² the residual variance.
 
 ### Output
 
-For each comparison with the reference group, the script prints the standard error,
-the degrees of freedom, and the **smallest detectable group difference**, in outcome
-units and as Cohen's d. With the defaults (200 subjects, 2 groups, 10 regions, so
-each test is at α = 0.005), the detectable effect is **d ≈ 0.52**.
+For each value of `subjects_per_site`, the script prints the total N, the degrees
+of freedom, the **power at `effect_d`**, and the **smallest detectable group
+difference** (as Cohen's d and in outcome units). It saves the table to
+`group_effect_curve.csv` and plots both curves in `group_effect_curve.png`:
+
+- left: power to detect `effect_d` against subjects per site, with the target power
+  marked;
+- right: smallest detectable d at the target power against subjects per site.
+
+With the defaults (20 sites, 2 groups, 10 regions, so each test is at α = 0.005):
+
+| Subjects per site | N | Power at d = 0.5 | Smallest detectable d |
+|---|---|---|---|
+| 4 | 80 | 0.27 | 0.83 |
+| 8 | 160 | 0.63 | 0.58 |
+| 10 | 200 | 0.76 | 0.52 |
+| 12 | 240 | 0.85 | 0.47 |
+| 16 | 320 | 0.95 | 0.41 |
+| 20 | 400 | 0.99 | 0.37 |
+
+With more than 2 groups, each row reports the least powerful comparison with the
+reference group.
 
 ### How it works
 

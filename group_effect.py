@@ -10,9 +10,12 @@ reference group), Bonferroni-corrected across regions.
 
 Balanced-sites simplification: for the power calculation, every site recruits
 the same number of subjects from each group. This is the best case for a given
-total N; imbalance within sites raises the detectable effect. This script reports the
-smallest group difference detectable at the target power, in outcome units and
-as Cohen's d.
+total N; imbalance within sites raises the detectable effect.
+
+For each number of subjects per site, this script reports the power to detect a
+group difference of effect_d (Cohen's d), and the smallest group difference
+detectable at the target power, in outcome units and as Cohen's d. It saves the
+table to group_effect_curve.csv and plots both curves in group_effect_curve.png.
 
 All parameter values below are placeholders. Replace them with your design and
 with estimates from prior data.
@@ -24,7 +27,7 @@ from scipy import optimize, stats
 # ---- Parameters -------------------------------------------------------------
 
 n_sites = 20                       # number of sites
-subjects_per_site = 10             # subjects at each site, split equally across groups
+subjects_per_site = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]  # values to evaluate; each split equally across groups
 n_groups = 2                       # group 0 is the reference group
 n_regions = 10                     # number of regions
 sd_total = 1.0                     # SD of one region's value across subjects (same group, site, age)
@@ -33,6 +36,7 @@ age_min, age_max = 25, 65          # age distribution: uniform(age_min, age_max)
 alpha = 0.05                       # two-sided, family-wise across the Bonferroni family
 bonferroni = True                  # False: test a single pre-specified region at alpha
 target_power = 0.80
+effect_d = 0.5                     # group difference (Cohen's d) for the power curve
 n_designs = 1000                   # random age draws to average power over
 seed = 1
 
@@ -106,30 +110,106 @@ def detectable_effect(se, df, alpha_test, target_power):
                            0, hi, xtol=1e-10 * hi)
 
 
-# ---- Detectable group-by-region effect --------------------------------------
+# ---- Power curve over subjects per site -------------------------------------
+
+
+def curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, icc,
+          age_min, age_max, alpha_test, target_power, effect_d, n_designs, rng):
+    """One row per subjects-per-site value. With more than 2 groups, each row
+    reports the least powerful comparison with the reference group."""
+    rows = []
+    for n in subjects_per_site:
+        se, df = power_curve_inputs(n_sites, n, n_groups, n_regions, sd_total,
+                                    icc, age_min, age_max, n_designs, rng)
+        k = np.argmax(se.mean(axis=0))
+        rows.append(dict(
+            subjects_per_site=n, N=n_sites * n, df=df[:, k].mean(),
+            power=power(effect_d * sd_total, se[:, k], df[:, k], alpha_test),
+            detectable=detectable_effect(se[:, k], df[:, k], alpha_test,
+                                         target_power)))
+    return rows
+
+
+def plot_curve(rows, path, title, effect_d, target_power, n_sites):
+    """Power at effect_d and detectable d against subjects per site."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    series, ink, ink2, muted, grid, axis, surface = (
+        "#2a78d6", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb")
+    x = [r["subjects_per_site"] for r in rows]
+    panels = [
+        ([r["power"] for r in rows], f"Power to detect d = {effect_d:g}", (0, 1)),
+        ([r["detectable"] for r in rows],
+         f"Smallest detectable d at {target_power:.0%} power", None),
+    ]
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.2), facecolor=surface)
+    for ax, (y, label, ylim) in zip(axes, panels):
+        ax.set_facecolor(surface)
+        ax.plot(x, y, color=series, lw=2, solid_joinstyle="round",
+                solid_capstyle="round", marker="o", ms=8,
+                markeredgecolor=surface, markeredgewidth=2, zorder=3)
+        ax.set_title(label, loc="left", color=ink, fontsize=11)
+        ax.set_xlabel(f"Subjects per site ({n_sites} sites)", color=ink2)
+        ax.set_xticks(x)
+        ax.grid(True, axis="y", color=grid, lw=1)
+        ax.set_axisbelow(True)
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.spines["bottom"].set_color(axis)
+        ax.tick_params(colors=muted, length=0)
+        if ylim:
+            ax.set_ylim(*ylim)
+        else:
+            ax.set_ylim(0, max(y) * 1.08)
+    axes[0].axhline(target_power, color=muted, lw=1, zorder=2)
+    axes[0].text(x[0], target_power + 0.02, f"{target_power:.0%} target",
+                 color=ink2, fontsize=9)
+    fig.suptitle(title, x=0.01, ha="left", color=ink2, fontsize=10)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150, facecolor=surface)
+    plt.close(fig)
+
+
+# ---- Run --------------------------------------------------------------------
 
 if __name__ == "__main__":
     rng = np.random.default_rng(seed)
     n_tests = n_regions * (n_groups - 1) if bonferroni else 1
     alpha_test = alpha / n_tests
-    se, df = power_curve_inputs(n_sites, subjects_per_site, n_groups, n_regions,
-                                sd_total, icc, age_min, age_max, n_designs, rng)
+    rows = curve(n_sites, subjects_per_site, n_groups, n_regions, sd_total, icc,
+                 age_min, age_max, alpha_test, target_power, effect_d,
+                 n_designs, rng)
 
-    N = n_sites * subjects_per_site
-    print(f"{n_sites} sites x {subjects_per_site} subjects = {N} subjects, "
-          f"{n_groups} groups, {n_regions} regions")
-    print(f"{n_tests} tests, each two-sided at alpha = {alpha_test:.4g}; "
-          f"target power {target_power:.0%}")
-    if subjects_per_site % n_groups == 0:
-        print(f"Balanced-sites simplification: {subjects_per_site // n_groups} "
-              f"subjects per group at every site")
+    summary = (f"{n_sites} sites, {n_groups} groups, {n_regions} regions; "
+               f"{n_tests} tests, each two-sided at alpha = {alpha_test:.4g}")
+    print(summary)
+    unbalanced = [n for n in subjects_per_site if n % n_groups]
+    if unbalanced:
+        print(f"Note: {unbalanced} subjects per site can't be split equally across "
+              f"{n_groups} groups, so the balanced-sites simplification holds only "
+              f"approximately for those rows (marked *).")
     else:
-        print(f"Note: {subjects_per_site} subjects per site can't be split equally "
-              f"across {n_groups} groups, so the balanced-sites simplification "
-              f"holds only approximately (sites split as evenly as possible).")
+        print("Balanced-sites simplification: equal group sizes at every site")
+    if n_groups > 2:
+        print("Each row shows the least powerful comparison with the reference group.")
     print()
-    print("Contrast         SE (outcome units)  df      Detectable effect  Cohen's d")
-    for k in range(n_groups - 1):
-        effect = detectable_effect(se[:, k], df[:, k], alpha_test, target_power)
-        print(f"group {k + 1} vs 0      {se[:, k].mean():<18.4g}  "
-              f"{df[:, k].mean():<6.0f}  {effect:<17.4g}  {effect / sd_total:.3f}")
+    print(f"Subjects/site     N    df  Power at d={effect_d:<5g}  "
+          f"Detectable d  Detectable (outcome units)")
+    for r in rows:
+        mark = "*" if r["subjects_per_site"] in unbalanced else " "
+        print(f"{r['subjects_per_site']:>12}{mark} {r['N']:>5} {r['df']:>5.0f}  "
+              f"{r['power']:>15.3f}  {r['detectable'] / sd_total:>12.3f}  "
+              f"{r['detectable']:>26.4g}")
+
+    with open("group_effect_curve.csv", "w") as f:
+        f.write("subjects_per_site,N,df,power_at_effect_d,detectable_d,"
+                "detectable_outcome_units\n")
+        for r in rows:
+            f.write(f"{r['subjects_per_site']},{r['N']},{r['df']:.1f},"
+                    f"{r['power']:.4f},{r['detectable'] / sd_total:.4f},"
+                    f"{r['detectable']:.6g}\n")
+    plot_curve(rows, "group_effect_curve.png", summary, effect_d, target_power,
+               n_sites)
+    print("\nSaved group_effect_curve.csv and group_effect_curve.png")

@@ -201,6 +201,17 @@ With the defaults ($m = 10$, $\alpha/m = 0.005$, $p = 0.8$, two equal groups of
 100), this is $(2.81 + 0.84) \times 2/\sqrt{200} \approx 0.52$ SD, matching the
 script's $d = 0.519$.
 
+## Step 5: The power curve over subjects per site
+
+The script repeats Steps 2–4 for each value of `subjects_per_site`, with the number
+of sites fixed. For each value it reports $\text{power}(\gamma)$ at
+$\gamma = d \cdot \mathrm{SD}$ (the parameter `effect_d`) and $\gamma^\ast$. Under
+the balanced-sites simplification with two groups,
+$\mathrm{SE} \approx 2\thinspace\mathrm{SD}/\sqrt{Sn}$, so the detectable effect
+falls roughly as $1/\sqrt n$: doubling the subjects per site shrinks it by about
+30%. At very small $n$ it falls faster than that, because the degrees of freedom
+are small and the t critical value is larger.
+
 ## Verification by simulation
 
 The derivation was also checked against real mixed-model fits (statsmodels
