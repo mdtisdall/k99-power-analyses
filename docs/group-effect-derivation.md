@@ -9,9 +9,24 @@ and which parameters to set.
 There are $S$ sites with $n$ subjects each, so $N = Sn$ subjects in total. Each
 subject is scanned **once, at one site**, and the outcome is measured in $R$
 regions. Subjects belong to one of $K$ groups; group 0 is the reference group.
-Within each site, subjects are split as evenly as possible across groups. For
+For
 subject $i$, let $s(i)$ be its site, $G_{ik}$ the indicator that it is in group $k$
 ($k = 1, \dots, K-1$), and $x_i$ its centered age.
+
+### Balanced-sites simplification
+
+**For the purposes of the power calculation, every site is assumed to recruit the
+same number of subjects from each group** ($n/K$ per group per site). This is a
+simplification for planning, not a requirement of the analysis: the model
+adjusts for site whatever the allocation. Real recruitment is rarely exactly
+balanced, so treat the result as the best case for a given total $N$ (see
+Step 2 for what imbalance costs).
+
+When $n$ is not divisible by $K$, the script splits each site as evenly as
+possible, computes the SE exactly for that split, and prints a note that the
+simplification holds only approximately.
+
+### Analysis model
 
 The analysis model is
 
@@ -123,22 +138,27 @@ variance components. It was checked against the brute-force
 $(\sum_i X_i^\top V^{-1} X_i)^{-1}$ to machine precision for several designs,
 including 3 unequal groups and a single region.
 
-**What this means in practice.** When groups are balanced within every site and
-age is unrelated to group, the site indicators remove no group information, so
-$c_b \approx c_w = c$ and
+**What the balanced-sites simplification buys.** Under the simplification, group
+is orthogonal to site, so the site indicators remove no group information. If age
+is also unrelated to group, $c_b \approx c_w = c$ and
 
 $$
 \mathrm{Var}(\hat\gamma_{rk}) \approx (\tau^2 + \sigma^2)\thinspace c = \mathrm{SD}^2 c .
 $$
 
-For two equal groups, $c \approx 4/N$, so $\mathrm{SE} \approx 2\thinspace\mathrm{SD}/\sqrt N$.
+With $K$ groups of $N/K$ subjects, $c \approx 2K/N$. For two groups that is $4/N$,
+so $\mathrm{SE} \approx 2\thinspace\mathrm{SD}/\sqrt N$.
 That is the same as a two-sample t test on that one region: the correlation between
 regions, the number of regions, and the site effects hardly matter. The random
 subject effect does not reduce the error of a group difference because group varies
 only between subjects, so each region's group comparison is subject to that region's
-full between-subject variability. The correlation $\rho$ starts to matter when
-groups are unbalanced within sites (the site adjustment then costs information,
-$c_b > c_w$, and higher $\rho$ puts more weight on $c_b$). It would also matter for
+full between-subject variability. Without the simplification, the correlation $\rho$ starts to
+matter: when groups are unbalanced within sites, the site adjustment costs
+information ($c_b > c_w$), and higher $\rho$ puts more weight on $c_b$. The cost
+is usually modest. For example, with $N = 60$ and $\rho = 0.5$, 20 sites of 3
+subjects split alternately 2:1 and 1:2 (30 per group overall) raise the detectable
+effect by about 3% compared with a design balanced within sites. Splitting every
+site 2:1, which also unbalances the overall group sizes, raises it by about 5%. It would also matter for
 a different question, whether the group difference *varies across regions*, which
 uses only the within-subject stratum and its smaller variance $\sigma^2$.
 
@@ -206,11 +226,13 @@ Both agree with the closed-form calculation within Monte Carlo error.
   effect for region $r$ scales with that region's SD. Run the script with each
   region's SD to see the range.
 - **Additive site effects.** A site shifts all regions equally, as in the model.
-  Region-specific scanner effects are not modeled. Balancing groups within sites
-  protects the group comparison from them.
-- **Balanced groups, comparable ages.** Groups are allocated evenly within each
-  site, and age has the same distribution in every group. Groups that differ in age
-  lose some information to the age adjustment.
+  Region-specific scanner effects are not modeled. Under the balanced-sites
+  simplification, they cancel from the group comparison.
+- **Balanced-sites simplification.** Every site recruits equally from each group
+  (see [above](#balanced-sites-simplification)). This gives the smallest detectable
+  effect for a given total $N$. Imbalance within sites makes it larger.
+- **Comparable ages.** Age has the same distribution in every group. Groups that
+  differ in age lose some information to the age adjustment.
 - **Normal errors.** Needed for the t-based power calculation to be exact. Otherwise
   it is approximate, which is usually fine at these sample sizes.
 

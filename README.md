@@ -104,8 +104,7 @@ Full derivation and assumptions: [docs/equivalence-derivation.md](docs/equivalen
 
 Subjects are recruited at many sites, and each subject is scanned **once, at one
 site**. The outcome is measured in several regions, and subjects belong to one of
-several groups (e.g. patients and controls), balanced within each site. The
-analysis model is
+several groups (e.g. patients and controls). The analysis model is
 
 ```
 y ~ 0 + region + region:age_c + site + region:group + (1 | subject)
@@ -117,16 +116,24 @@ across regions (and across groups, if there are more than 2).
 [`group_effect.py`](group_effect.py) reports the **smallest group difference
 detectable** at the target power.
 
+> **Balanced-sites simplification.** For the power calculation, every site is
+> assumed to recruit the same number of subjects from each group. This is a
+> planning simplification, not a requirement of the analysis. It gives the best
+> case for a given total N. Groups that are unbalanced within sites need a somewhat
+> larger effect to reach the same power, typically a few percent larger. Keep `subjects_per_site` divisible by
+> `n_groups`; otherwise the script warns that the simplification holds only
+> approximately.
+
 ### Parameters
 
 | Parameter | Default | What it is |
 |---|---|---|
 | `n_sites` | 20 | Number of sites. |
-| `subjects_per_site` | 10 | Subjects at each site, split evenly across groups. |
+| `subjects_per_site` | 10 | Subjects at each site, split equally across groups (balanced-sites simplification). |
 | `n_groups` | 2 | Number of groups. Group 0 is the reference; each other group is compared with it. |
 | `n_regions` | 10 | Number of regions (and of Bonferroni-corrected tests, with 2 groups). |
 | `sd_total` | 1.0 | SD of one region's value across subjects with the same group, site, and age. Only scales the answer in outcome units; leave at 1 to get the answer in SD units. |
-| `icc` | 0.5 | Correlation between two regions of the same subject. Has little effect when groups are balanced within sites. |
+| `icc` | 0.5 | Correlation between two regions of the same subject. Has little effect under the balanced-sites simplification. |
 | `age_min`, `age_max` | 25, 65 | Age range. Ages are drawn uniformly from this range, independently of group. |
 | `alpha` | 0.05 | Family-wise two-sided level, split across the tests by Bonferroni. |
 | `bonferroni` | `True` | Set to `False` to test a single pre-specified region at `alpha`. |
@@ -153,10 +160,10 @@ splits each subject's data into a subject mean and deviations from that mean, an
 the mixed model's estimate of each group-by-region effect combines an ordinary
 least-squares fit to each.
 
-A practical consequence: when groups are balanced within sites, the answer is
+A practical consequence of the balanced-sites simplification: the answer is
 essentially that of a two-sample t test on one region (with two equal groups,
 SE ≈ 2·SD/√N). The number of sites, the number of regions (except through
-Bonferroni), and `icc` barely matter. Unbalanced groups within sites cost power.
+Bonferroni), and `icc` barely matter.
 
 Full derivation, simulation check, and assumptions:
 [docs/group-effect-derivation.md](docs/group-effect-derivation.md).

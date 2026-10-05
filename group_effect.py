@@ -6,7 +6,11 @@ once, at one site. The analysis model is
     y ~ 0 + region + region:age_c + site + region:group + (1 | subject)
 
 and the test is each region's group difference (each non-reference group vs the
-reference group), Bonferroni-corrected across regions. This script reports the
+reference group), Bonferroni-corrected across regions.
+
+Balanced-sites simplification: for the power calculation, every site recruits
+the same number of subjects from each group. This is the best case for a given
+total N; imbalance within sites raises the detectable effect. This script reports the
 smallest group difference detectable at the target power, in outcome units and
 as Cohen's d.
 
@@ -20,7 +24,7 @@ from scipy import optimize, stats
 # ---- Parameters -------------------------------------------------------------
 
 n_sites = 20                       # number of sites
-subjects_per_site = 10             # subjects at each site, split evenly across groups
+subjects_per_site = 10             # subjects at each site, split equally across groups
 n_groups = 2                       # group 0 is the reference group
 n_regions = 10                     # number of regions
 sd_total = 1.0                     # SD of one region's value across subjects (same group, site, age)
@@ -37,7 +41,9 @@ seed = 1
 
 def make_design(n_sites, subjects_per_site, n_groups, age_min, age_max, rng):
     """Site, group, and centered age for every subject. Groups are allocated
-    round-robin within each site, so they are as balanced as possible."""
+    round-robin within each site: exactly balanced (the balanced-sites
+    simplification) when subjects_per_site is divisible by n_groups, and as
+    even as possible otherwise."""
     site = np.repeat(np.arange(n_sites), subjects_per_site)
     group = np.tile(np.arange(subjects_per_site) % n_groups, n_sites)
     age = rng.uniform(age_min, age_max, site.size)
@@ -114,6 +120,13 @@ if __name__ == "__main__":
           f"{n_groups} groups, {n_regions} regions")
     print(f"{n_tests} tests, each two-sided at alpha = {alpha_test:.4g}; "
           f"target power {target_power:.0%}")
+    if subjects_per_site % n_groups == 0:
+        print(f"Balanced-sites simplification: {subjects_per_site // n_groups} "
+              f"subjects per group at every site")
+    else:
+        print(f"Note: {subjects_per_site} subjects per site can't be split equally "
+              f"across {n_groups} groups, so the balanced-sites simplification "
+              f"holds only approximately (sites split as evenly as possible).")
     print()
     print("Contrast         SE (outcome units)  df      Detectable effect  Cohen's d")
     for k in range(n_groups - 1):
