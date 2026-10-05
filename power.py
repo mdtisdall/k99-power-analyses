@@ -19,7 +19,7 @@ N_grid = [5]                       # number of subjects (each scanned at all 3 s
 target_power = 0.80                # required P(all 15 TOSTs pass)
 s_ss = 0.05                        # SD of subject:site offset (shared across regions in a scan)
 sigma = 0.10                       # region-level measurement-noise SD (all sites and regions)
-age_min, age_max = 50, 80          # age distribution: uniform(age_min, age_max)
+age_min, age_max = 25, 65          # age distribution: uniform(age_min, age_max)
 dslope = np.zeros((5, 3))          # true slope deviation, regions (rows) x sites (cols)
 alpha = 0.05                       # one-sided level for each TOST (gives a 90% CI)
 n_sims = 10000
@@ -31,7 +31,7 @@ PAIRS = [(0, 1), (0, 2), (1, 2)]
 
 
 def min_passing_delta(N, s_ss=.05, sigma=.10, dslope=np.zeros((5, 3)),
-                      alpha=.05, age_min=50, age_max=80, n_sims=10000, rng=None):
+                      alpha=.05, age_min=25, age_max=65, n_sims=10000, rng=None):
     """For each of n_sims simulated studies, the smallest Delta at which all 15
     TOSTs would pass: max over comparisons of |slope diff| + t * SE."""
     rng = np.random.default_rng(rng)

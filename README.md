@@ -294,8 +294,8 @@ simulation, for $N = 5$ and $p = 0.8$, $g \approx 17.0$, $17.0$, $16.6$, and $15
 for $\rho = 0$, $0.2$, $0.5$, and $0.8$. So the answer depends almost entirely on the
 **total** scan-level noise relative to the age range, and hardly on how that noise
 splits between whole-scan offsets and region-level noise. With the placeholder
-values ($\lambda = 0.112$, $R = 30$, $\rho = 0.2$), this gives
-$\Delta^\ast_{0.8} \approx 0.112 / 30 \times 17.0 \approx 0.063$.
+values ($\lambda = 0.112$, $R = 40$, ages 25–65, $\rho = 0.2$), this gives
+$\Delta^\ast_{0.8} \approx 0.112 / 40 \times 17.0 \approx 0.048$.
 
 Why $g$ is so large at $N = 5$: for a single comparison, $S_{xx}$ is about
 $(N-1)R^2/12$, so $\mathrm{SE} \approx \sqrt{24/(N-1)}\, \lambda/R \approx 2.4\,\lambda/R$.
