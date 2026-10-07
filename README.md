@@ -2,10 +2,10 @@
 
 Two power analyses for multi-site MRI studies:
 
-1. [**Comparing harmonizations**](#analysis-1-comparing-harmonizations-by-between-site-age-slope-disagreement)
-   ([`harmonization.py`](harmonization.py)): every subject is scanned twice at each
-   of 3 sites. Can we show that harmonization A leaves less between-site
-   disagreement in regional age slopes than harmonization B?
+1. [**Scanner agreement in regional differences**](#analysis-1-scanner-agreement-in-regional-differences)
+   ([`agreement.py`](agreement.py)): every subject is scanned twice at each of 3
+   sites. Can we show that scanners preserve each subject's between-region
+   differences about as well as repeat scans on one scanner do?
 2. [**Detectable group-by-region effect**](#analysis-2-detectable-group-by-region-effect)
    ([`group_effect.py`](group_effect.py)): each subject is scanned at one of 14
    sites, once a year for 3 years. How large a group difference in a region can we
@@ -26,18 +26,18 @@ Two power analyses for multi-site MRI studies:
 3. Run it:
 
    ```bash
-   python3 harmonization.py
+   python3 agreement.py
    ```
 
    ```bash
    python3 group_effect.py
    ```
 
-   Each run takes a few seconds (`harmonization.py` about half a minute; the first
-   run can take longer while matplotlib sets itself up) and writes a table (`.csv`) and a plot (`.png`) to the current
-   folder. On Windows, type `python` instead of `python3`.
+   Each run takes a few seconds (`agreement.py` about 15 seconds; the first run
+   can take longer while matplotlib sets itself up) and writes a table (`.csv`)
+   and a plot (`.png`) to the current folder. On Windows, type `python` instead of `python3`.
 
-(With Nix, `nix-shell --run "python3 harmonization.py"` does steps 1 and 3 together,
+(With Nix, `nix-shell --run "python3 agreement.py"` does steps 1 and 3 together,
 and likewise for `group_effect.py`.)
 
 All parameter values in both scripts are **placeholders**. Replace them with your
@@ -52,161 +52,127 @@ R with lme4 and lmerTest.
 
 ---
 
-## Analysis 1: comparing harmonizations by between-site age-slope disagreement
+## Analysis 1: scanner agreement in regional differences
 
 N subjects are each scanned twice at each of 3 sites, and mean magnetic
-susceptibility (ppb, from QSM) is measured in 5 deep grey matter regions. Two
-harmonization approaches, A and B, are applied to the same scans. After each
-approach, each site's data, on their own, would be analyzed with
+susceptibility (ppb, from QSM) is measured in 5 deep grey matter regions. The
+outcome is every **pairwise difference between regions within a scan** (10
+differences), so anything that shifts a whole scan cancels. The question is
+whether scanners preserve each subject's regional differences about as well as a
+repeat scan on the same scanner does.
 
-```
-y ~ 0 + region + region:age_c + (1 | subject)
-```
+The target is the ratio
 
-The question is whether A leaves **less between-site disagreement in the regional
-age slopes** than B. An approach's disagreement in a region is the sum, over the 3
-pairs of sites, of the squared difference between the two sites' age slopes (3
-times the variance of that region's slope across sites).
+> **R** = (mean squared difference between single scans at two sites) / (mean
+> squared difference between two repeat scans at one site),
 
-- **Primary test:** A's disagreement, summed over the 5 regions, is smaller than
-  B's (one-sided).
-- **Secondary tests:** the same comparison in each region, Holm-corrected across
-  regions, to say where A helps.
+for the same subject and regional difference. Both **fixed scanner offsets** (a
+scanner shifting one region relative to another in everyone) and
+**subject-specific scanner scatter** count as disagreement. R is at least 1, since
+a between-scanner difference always includes the repeat noise, so "the same size
+or smaller" is shown as **R below a margin R₀**:
 
-For each number of subjects, [`harmonization.py`](harmonization.py) estimates the
-**power** of the primary test in a planning scenario, each region's chance of
-being declared by the secondary tests, and the **smallest disagreement in B**
-that the primary test detects at the target power (see
-[How it works](#how-it-works)).
+- **Primary test:** pooled over all region pairs, R < 1.5 (one-sided). R₀ = 1.5
+  means between-scanner differences have at most 1.22 times the SD of repeat
+  differences.
+- **Secondary test:** every one of the 10 region pairs has R < 2 (all 10 must pass;
+  no correction is needed for that).
+
+Both are F tests of the between-site mean square within subjects against the
+repeat mean square (see [How it works](#how-it-works)). For each planning scenario
+and number of subjects, [`agreement.py`](agreement.py) estimates the **power** of
+both tests and the **smallest margin** each can show at the target power.
 
 ### Parameters
 
 | Parameter | Default | What it is |
 |---|---|---|
-| `N_grid` | 10, 20, …, 100 | Numbers of subjects to evaluate (the x-axis of the power curve). At least 3. |
-| `target_power` | 0.80 | Required power of the primary test. |
+| `N_grid` | 6, 8, 10, …, 50 | Numbers of subjects to evaluate (the x-axis of the power curves). At least 2. |
+| `n_rep` | 2 | Scans per subject at each site (at least 2: the repeats measure within-scanner noise). |
+| `target_power` | 0.80 | Required power. |
 | `alpha` | 0.05 | One-sided level of each test. |
-| `age_slope` | 1.0 | True age slope in every region (ppb per year), from Li et al. (2023). Scanner gain mismatches turn into slope differences in proportion to it. |
-| `sd_between` | 20 | SD (ppb) of true susceptibility across subjects of the same age, from Li et al. (2023). A gain mismatch lets this leak into between-site differences as extra noise. |
-| `age_min`, `age_max` | 25, 65 | Age range of the sample. Ages are drawn uniformly from this range. |
-| `n_rep` | 2 | Scans per subject at each site, averaged before analysis. |
-| `sd_scan` | 1.0 | SD (ppb) of a whole-scan offset: how much all of a subject's regional values shift together from one scan to the next. |
-| `sd_noise` | 2.1 | SD (ppb) of region-level scan-to-scan noise. |
-| `sd_site` | 2.9 | SD (ppb) of a region-level subject-by-site deviation that repeats in every scan at that site, so repeat scans do not reduce it. |
-| `noise_corr` | 0.9 | Correlation between A's and B's noise. Both come from the same scans, so it is high; 1 if both are per-site rescalings of the same values. |
-| `gain_A`, `gain_B` | A: all 1; B: sites 1.0, 0.8, 1.2 | Planning scenario: the gain (scale) each approach leaves at each site, by region (rows) and site (columns). Equal gains across sites mean no slope disagreement; B's default gives slope differences of 0.2–0.4 ppb per year. |
-| `n_sims` | 10000 | Simulated studies per sample size. |
+| `R0_pooled`, `R0_pair` | 1.5, 2.0 | Margins for the pooled and every-pair tests. |
+| `sd_noise` | 2.1 | SD (ppb) of region-level scan-to-scan noise. Power depends only on ratios; this only converts the scenarios to ppb. |
+| `scenarios` | R = 1.1, R = 1.25 | Planning scenarios: the true pooled R (at most two, for the plot). |
+| `offset_share` | 0.5 | Fraction of R − 1 due to fixed scanner offsets; the rest is subject-specific scatter (`sd_site`). |
+| `offset_pattern` | site 3, region 1 | Where the fixed offsets are (sites × regions), scaled to fit `offset_share`. The default, one region shifted at one site, is the worst case for the every-pair test. |
+| `n_sims` | 20000 | Simulated studies per scenario and sample size. |
 | `seed` | 1 | Random seed, so results are reproducible. |
 
-**Where the values come from.**
+**Planning values.** The scanners will be harmonized in acquisition and
+processing, so we plan for **R = 1.1–1.25**. In ppb, with repeat noise of 2.1 ppb
+per region (Naji et al., 2022), R = 1.25 corresponds, for example, to fixed offsets
+that change the scanners' regional differences by 1.5 ppb (root mean square), plus
+subject-specific scatter of 0.74 ppb per region. Lin et al. (2015), with three
+phantom-calibrated 3T scanners, found that cross-site errors in deep grey matter
+were not significantly larger than within-site errors, which is consistent with R
+near 1. Without harmonization, R can be much larger: Naji et al.'s cross-site
+variability (from site-specific protocols) allows R up to about 2.9, and their
+site biases of up to 4.1 ppb would by themselves exceed either margin.
 
-- **Age slope and between-subject SD.** Li et al. (2023) measured six deep grey
-  matter nuclei in 220 healthy people aged 10–70 on one 3T scanner. Their linear
-  fits of mean susceptibility on age (supplementary Table S1) gave 0.79 ppb per year
-  in the head of the caudate, 1.08 in the putamen, 1.01 in the globus pallidus,
-  1.17 in the red nucleus, 0.84 in the dentate nucleus, and 0.42 in the substantia
-  nigra, with SEs of 0.08–0.15 (from the reported R² and n). We use **1.0 ppb per
-  year (SE 0.1)**. The SD around their fits was 17–34 ppb; we use 20. These are
-  cross-sectional estimates from one scanner and one QSM pipeline (MEDI with a CSF
-  reference).
-- **Noise.** Naji et al. (2022) scanned 24 traveling subjects twice at each of 3
-  sites (two GE, one Siemens; site-specific protocols, iLSQR, referenced to the
-  whole-brain mean, the same regions mapped to every scan). The mean within-site
-  SD was 2.36 ppb, which we split 1:2 into `sd_scan` = 1.0 and `sd_noise` = 2.1
-  (the split matters little). Their mean cross-site SD was 4.16 ppb, but it
-  includes fixed site offsets, which cancel here. Their Bland–Altman SD of
-  cross-site differences, which excludes the average bias, was at most 5.3 ppb, so
-  one scan's cross-site SD is at most 5.3/√2 = 3.75 ppb, and
-  `sd_site` ≤ √(3.75² − 2.36²) ≈ 2.9 ppb. Other 3T studies give cross-site SDs of
-  4–12 ppb (e.g. Lancione et al., 2022: about 7 ppb).
-- **Planning scenario.** Scanner gains differed by up to 4% between Naji's sites
-  and by 18% between one pair of Lancione's. The default assumes B leaves gains of
-  1.0, 0.8 and 1.2 at the three sites (a pessimistic, Lancione-like case) and A
-  removes them completely.
-
-> Li G, Tong R, Zhang M, Gillen KM, Jiang W, Du Y, Wang Y, Li J. Age-dependent
-> changes in brain iron deposition and volume in deep gray matter nuclei using
-> quantitative susceptibility mapping. *NeuroImage*. 2023;269:119923.
-> https://doi.org/10.1016/j.neuroimage.2023.119923
->
 > Naji N, Lauzon ML, Seres P, Stolz E, Frayne R, Lebel C, Beaulieu C, Wilman AH.
 > Multisite reproducibility of quantitative susceptibility mapping and effective
 > transverse relaxation rate in deep gray matter at 3 T using locally optimized
 > sequences in 24 traveling heads. *NMR in Biomedicine*. 2022;35(11):e4788.
 > https://doi.org/10.1002/nbm.4788
 >
-> Lancione M, Bosco P, Costagli M, et al. Multi-centre and multi-vendor
-> reproducibility of a standardized protocol for quantitative susceptibility
-> mapping of the human brain at 3T. *Physica Medica*. 2022;103:37–45.
-> https://doi.org/10.1016/j.ejmp.2022.09.012
-
-**Estimating the noise from your own traveling-subject data.** For each region,
-the SD between a subject's two scans at the same site gives
-√(`sd_scan`² + `sd_noise`²). The SD between sites of single scans, after removing
-each site's mean offset and gain for that region, gives
-√(`sd_scan`² + `sd_noise`² + `sd_site`²).
+> Lin P-Y, Chao T-C, Wu M-L. Quantitative susceptibility mapping of human brain at
+> 3T: a multisite reproducibility study. *American Journal of Neuroradiology*.
+> 2015;36(3):467–474. https://doi.org/10.3174/ajnr.A4137
 
 ### Output
 
-For each number of subjects, the script prints the **power of the primary test**,
-each region's chance of being declared by the Holm-corrected secondary tests
-(lowest and mean over regions), and the **smallest largest between-site slope
-difference in B** that the primary test detects with 80% power, with A perfectly
-harmonized and B's gain pattern scaled up or down. It saves the table to
-`harmonization_curve.csv` and plots the curves in `harmonization_curve.png`. With
-the defaults:
+For each scenario and number of subjects, the script prints the **power** of the
+pooled test at R₀ = 1.5 and of the every-pair test at R₀ = 2, and the **smallest
+margin** each test can show with 80% power. It saves the table to
+`agreement_curve.csv` and plots both power curves in `agreement_curve.png`. With the
+defaults (half of R − 1 from fixed offsets):
 
-![Power of the pooled and per-region tests, and smallest detectable slope difference in B at 80% power, against number of subjects](docs/harmonization_curve.png)
+![Power of the pooled test at margin 1.5 and the every-pair test at margin 2, against number of subjects, for true R of 1.1 and 1.25](docs/agreement_curve.png)
 
-| Subjects | Power, pooled | Power, one region (Holm) | Smallest B slope difference at 80% power (ppb/year) |
-|---|---|---|---|
-| 10 | 0.29 | 0.02 | not reached |
-| 20 | 0.69 | 0.02 | 0.65 |
-| 30 | 0.92 | 0.04 | 0.28 |
-| 50 | > 0.99 | 0.14 | 0.18 |
-| 75 | > 0.99 | 0.40 | 0.13 |
-| 100 | > 0.99 | 0.72 | 0.11 |
+| Subjects | Pooled power, R = 1.1 | Pooled power, R = 1.25 | Every-pair power, R = 1.1 | Every-pair power, R = 1.25 |
+|---|---|---|---|---|
+| 6 | 0.60 | 0.28 | 0.01 | 0.00 |
+| 10 | 0.80 | 0.39 | 0.10 | 0.01 |
+| 15 | 0.92 | 0.53 | 0.30 | 0.04 |
+| 20 | 0.97 | 0.63 | 0.53 | 0.09 |
+| 30 | > 0.99 | 0.79 | 0.84 | 0.24 |
+| 50 | > 0.99 | 0.94 | 0.99 | 0.54 |
 
-With B's slopes differing by up to 0.4 ppb per year (40% of the age slope),
-**about 25 subjects** give 80% power to show that A disagrees less overall. Saying
-which regions improve needs far more: each region's Holm-corrected test reaches 80%
-power only at about 110 subjects. For a smaller mismatch in B, read the right
-panel: at N = 50 the pooled test detects B's slopes differing by about 0.18 ppb per
-year (B's gains 1.0, 0.91 and 1.09), and at N = 100 about 0.11.
-
-The second scan per site helps little, because most of the noise between sites
-(`sd_site`) repeats in every scan at that site.
+- **Pooled test:** 80% power with **about 10 subjects if R = 1.1, and about 30 if
+  R = 1.25**. With 30 subjects, the smallest margin shown with 80% power is 1.31
+  (R = 1.1) or 1.51 (R = 1.25).
+- **Every-pair test:** much more demanding, because the worst of 10 pairs decides
+  it, and a fixed offset in one region makes 4 pairs worse than the average. It
+  needs about 30 subjects if R = 1.1; if R = 1.25, more than 50.
+- Pooled power depends only on R, not on how R − 1 splits between offsets and
+  scatter; the every-pair test is hurt most when the offsets are concentrated.
 
 ### How it works
 
-The per-site models are not used for testing; they define the slopes. For each
-approach, region, and pair of sites, the difference between the two sites' slopes
-is exactly the slope of a regression of each subject's between-site difference on
-age. An approach's disagreement is a sum of squares of these slope differences.
-The test estimates B's disagreement minus A's from the paired data, subtracts the
-part that sampling noise adds to squared estimates (otherwise a noisier approach
-would look worse even if it removed no scanner bias), and divides by a plug-in
-standard error. The test is slightly conservative: at the null boundary, its
-rejection rate is at most 0.044 for a nominal 0.05.
+For each regional difference, a two-way layout (subject × site, with repeats)
+gives two mean squares: the variation between sites within subjects (site means
+**not** removed, so fixed offsets count), with N × 2 degrees of freedom, and the
+variation between repeats, with N × 3 degrees of freedom. Their ratio is
+1 + 2(R − 1) times an F variable, so the test of R < R₀ is an exact F test when
+there are no fixed offsets, and conservative when there are. The pooled test adds
+the mean squares over 4 orthonormal contrasts that span all 10 pairwise
+differences; it is the same as testing all 10 together. Subjects' own regional
+patterns, their ages, and whole-scan offsets all cancel, so no between-subject
+variance or age range is needed.
 
 Things to settle in the analysis plan:
 
-- **Estimate harmonization parameters out of sample.** If an approach fits its
-  site parameters to the same traveling subjects, it fits their noise and looks
-  better than it is. Fit them for each subject from the other subjects
-  (cross-fitting), or from separate calibration data.
-- **Check the overall scale.** An approach that shrinks all values shrinks the
-  slope differences without improving agreement. If the pooled slopes differ
-  between approaches, compare disagreement relative to each approach's slope.
-- **Use one QSM pipeline and reference** for both approaches; Li et al. and Naji et
-  al. differ in both.
-
-Why not simpler tests? A model × site × age interaction tests whether the slope
-differences *change*, not whether they *shrink*. Comparing the site × age test of
-A with that of B compares p-values and ignores that both come from the same scans.
+- **Make the repeats true repeats.** Reposition the subject between the two scans
+  at a site. Otherwise the repeat noise is too small and the scanners look worse.
+- **Check for outliers** (e.g. motion) before testing: variance ratios are
+  sensitive to them.
+- **Report what drives a failure:** the fixed offsets (site means of each regional
+  difference) and the subject-specific scatter separately, with the 10 per-pair
+  ratios and CIs.
 
 Full derivation and assumptions:
-[docs/harmonization-derivation.md](docs/harmonization-derivation.md).
+[docs/agreement-derivation.md](docs/agreement-derivation.md).
 
 ---
 
@@ -397,7 +363,10 @@ Caveats:
 > sequences in 24 traveling heads. *NMR in Biomedicine*. 2022;35(11):e4788.
 > https://doi.org/10.1002/nbm.4788
 >
-> Li et al. (2023): see [Analysis 1](#analysis-1-comparing-harmonizations-by-between-site-age-slope-disagreement).
+> Li G, Tong R, Zhang M, Gillen KM, Jiang W, Du Y, Wang Y, Li J. Age-dependent
+> changes in brain iron deposition and volume in deep gray matter nuclei using
+> quantitative susceptibility mapping. *NeuroImage*. 2023;269:119923.
+> https://doi.org/10.1016/j.neuroimage.2023.119923
 
 ### How it works
 

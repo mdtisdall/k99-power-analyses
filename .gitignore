@@ -1,10 +1,10 @@
-/harmonization_curve.csv
+/agreement_curve.csv
 __pycache__/
 .venv/
 .DS_Store
 /group_effect_curve.csv
 /group_effect_curve.png
-/harmonization_curve.png
+/agreement_curve.png
 
 # Journal papers kept locally for reference
 *.pdf
